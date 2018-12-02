@@ -34,6 +34,9 @@ platform:
 
 build_script:
 
+    - set PATH=c:/Python27-x64;c:/Python27-x64/Scripts;%PATH%
+    #- python -m pip install --upgrade pip
+    - pip install pyside2
     - mkdir c:\USDinst
     - cd c:\projects\USD
-    - c:/Python27-x64/python.exe build_scripts/build_usd.py c:/USDinst
+    - python build_scripts/build_usd.py c:/USDinst
