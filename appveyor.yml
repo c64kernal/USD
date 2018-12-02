@@ -36,7 +36,8 @@ build_script:
 
     - set PATH=c:/Python27-x64;c:/Python27-x64/Scripts;%PATH%
     - python -m pip install --upgrade pip
-    - pip2 install --index-url=https://download.qt.io/official_releases/QtForPython/ pyside2
+      #- pip install --index-url=https://download.qt.io/official_releases/QtForPython/ pyside2
+    - pip --pre install pyside2
     - mkdir c:\USDinst
     - cd c:\projects\USD
     - python build_scripts/build_usd.py c:/USDinst
