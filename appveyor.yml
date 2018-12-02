@@ -47,8 +47,14 @@ build_script:
     - 
 
     # IlmBase
-    - git clone https://github.com/openexr/openexr.git c:/projects/openexr
+    - cd c:\packages
+    - mkdir openexr
+    - cd openexr
+    - appveyor DownloadFile https://github.com/openexr/openexr/archive/v2.2.0.zip -FileName openexr.zip
+    - 7z x openexr.zip
+    - dir
     - cd c:\projects\openexr\IlmBase
+    - dir
     - mkdir build
     - cd build
     - cmake -G "Visual Studio %Configuration%" \
