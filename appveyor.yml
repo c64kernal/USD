@@ -53,7 +53,7 @@ build_script:
     - appveyor DownloadFile https://github.com/openexr/openexr/archive/v2.2.0.zip -FileName openexr.zip
     - 7z x openexr.zip
     - dir
-    - cd c:\projects\openexr\IlmBase
+    - cd c:\projects\openexr\openexr-2.2.0\IlmBase
     - dir
     - mkdir build
     - cd build
