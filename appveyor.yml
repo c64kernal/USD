@@ -40,4 +40,4 @@ build_script:
     - pip install PyOpenGL
     - mkdir c:\USDinst
     - cd c:\projects\USD
-    - python build_scripts/build_usd.py c:/USDinst
+    - python build_scripts/build_usd.py --verbose c:/USDinst
