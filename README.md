@@ -13,6 +13,7 @@ Build Status
 |       | master | dev |
 | ----- | ------ | --- |
 | Linux | [![Build Status](https://travis-ci.org/PixarAnimationStudios/USD.svg?branch=master)](https://travis-ci.org/PixarAnimationStudios/USD) | [![Build Status](https://travis-ci.org/PixarAnimationStudios/USD.svg?branch=dev)](https://travis-ci.org/PixarAnimationStudios/USD) |
+| Windows | [![Build status](https://ci.appveyor.com/api/projects/status/knuwy0hfhewn1o34/branch/master?svg=true)](https://ci.appveyor.com/project/c64kernal/usd) | [![Build status](https://ci.appveyor.com/api/projects/status/knuwy0hfhewn1o34/branch/dev_appv?svg=true)](https://ci.appveyor.com/project/c64kernal/usd) |
 
 Additional Documentation
 ------------------------
