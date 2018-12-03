@@ -27,10 +27,14 @@ clone_folder: c:\projects\USD
 
 branches:
     only:
-        - dev_appv
+        - dev
 
 platform:
     - x64
+
+cache:
+    - C:\USDinst\build\boost
+    - C:\USDinst\build\zlib-1.2.11
 
 init:
     - set PATH=c:/Python27-x64;c:/Python27-x64/Scripts;%PATH%
