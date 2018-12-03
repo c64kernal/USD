@@ -53,8 +53,8 @@ build_script:
     - dir
 
 after_build:
-    - 7z a USD.zip C:\USDinst
+    - 7z a C:\USDgen\build\USD.zip C:\USDinst
 
 artifacts:
-    - path: USD.zip
+    - path: C:\USDgen\build\USD.zip
       name: package
