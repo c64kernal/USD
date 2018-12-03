@@ -32,13 +32,20 @@ branches:
 platform:
     - x64
 
-build_script:
-
+init:
     - set PATH=c:/Python27-x64;c:/Python27-x64/Scripts;%PATH%
+    - C:\"Program Files (x86)"\"Microsoft Visual Studio"\2017\Community\VC\Auxiliary\Build\vcvarsall.bat amd64
+
+before_build:
     - python -m pip install --upgrade pip
     - pip install pyside
     - pip install PyOpenGL
     - mkdir c:\USDinst
+
+build_script:
+
     - cd c:\projects\USD
-    - python build_scripts/build_usd.py -vvv c:/USDinst
+    - python build_scripts/build_usd.py --no-imaging -vvv c:/USDinst
+    - cd c:\USDinst\build
+    - dir
 
