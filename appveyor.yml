@@ -33,8 +33,8 @@ platform:
     - x64
 
 cache:
-    - C:\USDinst\build\boost
-    - C:\USDinst\build\zlib-1.2.11
+    - C:\USDgen\build\boost
+    - C:\USDgen\build\zlib-1.2.11
 
 init:
     - set PATH=c:/Python27-x64;c:/Python27-x64/Scripts;%PATH%
@@ -44,12 +44,17 @@ before_build:
     - python -m pip install --upgrade pip
     - pip install pyside
     - pip install PyOpenGL
-    - mkdir c:\USDinst
 
 build_script:
 
     - cd c:\projects\USD
-    - python build_scripts/build_usd.py --no-imaging -vvv c:/USDinst
-    - cd c:\USDinst\build
+    - python build_scripts/build_usd.py -vvv --no-imaging --build C:/USDgen/build --src C:/USDgen/src c:/USDinst
+    - cd c:\USDgen\build
     - dir
 
+after_build:
+    - 7z a USD.zip C:\USDinst
+
+artifacts:
+    - path: USD.zip
+      name: package
