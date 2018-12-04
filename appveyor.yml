@@ -49,7 +49,7 @@ before_build:
 build_script:
 
     - cd c:\projects\USD
-    - python build_scripts/build_usd.py -vvv --no-imaging --build C:/USDgen/build --src C:/USDgen/src c:/USDinst
+    - python build_scripts/build_usd.py -vvv --build C:/USDgen/build --src C:/USDgen/src c:/USDinst
     - cd c:\USDgen\build
     - dir
 
