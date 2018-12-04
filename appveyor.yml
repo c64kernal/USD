@@ -35,6 +35,7 @@ platform:
 cache:
     - C:\USDgen\build\boost
     - C:\USDgen\build\zlib-1.2.11
+    - C:\USDgen\src
 
 init:
     - set PATH=c:/Python27-x64;c:/Python27-x64/Scripts;%PATH%
