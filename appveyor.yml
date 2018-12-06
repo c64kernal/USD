@@ -35,7 +35,7 @@ platform:
 install:
     - ps: $env:USD_YY_VERSION = (Get-Content .\cmake\defaults\Version.cmake | Where-Object {$_ -match 'PXR_MINOR_VERSION'}).Split("( )")[2].Trim('"')
     - ps: $env:USD_MM_VERSION = (Get-Content .\cmake\defaults\Version.cmake | Where-Object {$_ -match 'PXR_PATCH_VERSION'}).Split("( )")[2].Trim('"')
-    - ps: Update-AppveyorBuild -Version "$env:USD_YY_VERSION.$env:USD_MM_VERSION.$env:APPVEYOR_BUILD_NUMBER"
+    - ps: Update-AppveyorBuild -Version "$env:USD_YY_VERSION.$env:USD_MM_VERSION-build$env:APPVEYOR_BUILD_NUMBER"
 
 cache:
     - C:\USDgen\build\boost -> build_scripts/build_usd.py
@@ -64,7 +64,7 @@ build_script:
     - dir
 
 after_build:
-    - set archivename=usd-%USD_YY_VERSION%.%USD_MM_VERSION%.%APPVEYOR_BUILD_NUMBER%-%VSCMD_ARG_TGT%-msvc-%VSCMD_VER%.zip
+    - set archivename=usd-%USD_YY_VERSION%.%USD_MM_VERSION%-%VSCMD_ARG_TGT_ARCH%-msvc-%VSCMD_VER%-build%APPVEYOR_BUILD_NUMBER%.zip
     - 7z a C:\projects\USD\%archivename% C:\USDinst
 
 artifacts:
