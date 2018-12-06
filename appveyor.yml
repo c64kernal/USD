@@ -32,8 +32,15 @@ branches:
 platform:
     - x64
 
+install:
+    - ps: $env:USD_YY_VERSION = (Get-Content .\cmake\defaults\Version.cmake | Where-Object {$_ -match 'PXR_MINOR_VERSION'}).Split("( )")[2].Trim('"')
+    - ps: $env:USD_MM_VERSION = (Get-Content .\cmake\defaults\Version.cmake | Where-Object {$_ -match 'PXR_PATCH_VERSION'}).Split("( )")[2].Trim('"')
+    - ps: Update-AppveyorBuild -Version "$env:USD_YY_VERSION.$env:USD_MM_VERSION.$env:APPVEYOR_BUILD_NUMBER"
+
 cache:
     - C:\USDgen\build\boost -> build_scripts/build_usd.py
+    - C:\USDgen\build\IlmBase -> build_scripts/build_usd.py
+    - C:\USDgen\build\OpenEXR -> build_scripts/build_usd.py
     - C:\USDgen\build\OpenSubdiv-3_1_1 -> build_scripts/build_usd.py
     - C:\USDgen\build\zlib-1.2.11 -> build_scripts/build_usd.py
     - C:\USDgen\src -> build_scripts/build_usd.py
@@ -47,6 +54,7 @@ before_build:
     - python -m pip install --upgrade pip
     - pip install pyside
     - pip install PyOpenGL
+    - 
 
 build_script:
 
@@ -56,8 +64,9 @@ build_script:
     - dir
 
 after_build:
-    - 7z a C:\projects\USD\USD.zip C:\USDinst
+    - set archivename=usd-%USD_YY_VERSION%.%USD_MM_VERSION%.%APPVEYOR_BUILD_NUMBER%-%VSCMD_ARG_TGT%-msvc-%VSCMD_VER%.zip
+    - 7z a C:\projects\USD\%archivename% C:\USDinst
 
 artifacts:
-    - path: usd-{version}.zip
+    - path: usd-*.zip
       name: package
