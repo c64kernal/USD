@@ -33,8 +33,8 @@ platform:
     - x64
 
 install:
-    - ps: $env:USD_YY_VERSION = (Get-Content .\cmake\defaults\Version.cmake | Where-Object {$_ -match 'PXR_MINOR_VERSION'}).Split("( )")[2].Trim('"')
-    - ps: $env:USD_MM_VERSION = (Get-Content .\cmake\defaults\Version.cmake | Where-Object {$_ -match 'PXR_PATCH_VERSION'}).Split("( )")[2].Trim('"')
+    - ps: $env:USD_YY_VERSION = (Get-Content .\cmake\defaults\Version.cmake | Where-Object {$_ -match 'PXR_MINOR_VERSION'}).Split("( )")[2].Trim('"').PadLeft(2, "0")
+    - ps: $env:USD_MM_VERSION = (Get-Content .\cmake\defaults\Version.cmake | Where-Object {$_ -match 'PXR_PATCH_VERSION'}).Split("( )")[2].Trim('"').PadLeft(2, "0")
     - ps: Update-AppveyorBuild -Version "$env:USD_YY_VERSION.$env:USD_MM_VERSION-build$env:APPVEYOR_BUILD_NUMBER"
 
 cache:
