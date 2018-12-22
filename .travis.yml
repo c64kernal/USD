@@ -59,7 +59,7 @@ before_install:
 
 install:
   - if [ $TRAVIS_OS_NAME == linux ] ; then
-        sudo apt-get install libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
+        sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
         sudo apt-get install python-pyside pyside-tools ;
         sudo pip install PyOpenGL ;
     elif [ $TRAVIS_OS_NAME == osx ] ; then
