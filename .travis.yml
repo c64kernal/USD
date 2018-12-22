@@ -53,11 +53,20 @@ branches:
     - dev_tci
 
 before_install:
-  - sudo apt-get -qq update
+  - if [ $TRAVIS_OS_NAME == linux ] ; then
+        sudo apt-get -qq update
+    fi
 
 install:
-  - sudo apt-get install python-pyside pyside-tools
-  - sudo pip install PyOpenGL
+  - if [ $TRAVIS_OS_NAME == linux ] ; then
+        sudo apt-get install python-pyside pyside-tools
+        sudo pip install PyOpenGL
+    elif [ $TRAVIS_OS_NAME == osx ] ; then
+        sudo pip install pyside2
+        sudo pip install PyOpenGL
+    fi
+
+
 
 script:
   - mkdir -p $HOME/USDinst
