@@ -54,18 +54,17 @@ branches:
 
 before_install:
   - if [ $TRAVIS_OS_NAME == linux ] ; then
-        sudo apt-get -qq update
+        sudo apt-get -qq update ;
     fi
 
 install:
   - if [ $TRAVIS_OS_NAME == linux ] ; then
-        sudo apt-get install python-pyside pyside-tools
-        sudo pip install PyOpenGL
+        sudo apt-get install python-pyside pyside-tools ;
+        sudo pip install PyOpenGL ;
     elif [ $TRAVIS_OS_NAME == osx ] ; then
-        sudo pip install pyside2
-        sudo pip install PyOpenGL
+        sudo pip install pyside2 ;
+        sudo pip install PyOpenGL ;
     fi
-
 
 
 script:
