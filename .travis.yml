@@ -27,6 +27,26 @@
 sudo: required
 dist: trusty
 
+os:
+    - linux
+    - osx
+
+osx_image: xcode10.1
+
+compiler:
+    - gcc
+    - clang
+
+matrix:
+
+    # On Linux build with gcc and on OSX build with clang
+    exclude:
+        - os: osx
+          compiler: gcc
+        - os: linux
+          compiler: clang
+
+
 language: cpp
 
 branches:
