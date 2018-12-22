@@ -51,8 +51,7 @@ language: cpp
 
 branches:
   only:
-    - master
-    - dev
+    - dev_tci
 
 before_install:
   - sudo apt-get -qq update
