@@ -3,8 +3,8 @@ trigger:
 
 pool:
   vmImage: 'Ubuntu-16.04'
-  vmImage: 'VS2017-Win2016'
-  vmImage: 'macOS-10.13'
+  #vmImage: 'VS2017-Win2016'
+  #vmImage: 'macOS-10.13'
 
 steps:
     - script: |
