@@ -42,7 +42,7 @@ jobs:
       architecture: 'x64'
   - script: |
       python -m pip install --upgrade pip
-      python -m pip install pyside2
+      python -m pip install pyside
       python -m pip install PyOpenGL
     displayName: 'Installing dependencies on Windows'
   - script: |
