@@ -11,6 +11,7 @@ steps:
       condition: eq( variables['Agent.OS'], 'Linux' )
       displayName: 'Updating on Linux...'
     - script: |
+        sudo apt-get install build-essentials
         sudo apt-get install python-setuptools
         sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
         sudo apt-get install python-pyside pyside-tools ;
