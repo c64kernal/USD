@@ -1,28 +1,43 @@
 trigger:
 - dev_az
 
-pool:
-  vmImage: 'Ubuntu-16.04'
-  #vmImage: 'VS2017-Win2016'
-  #vmImage: 'macOS-10.13'
+jobs:
+- job: Linux
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    steps:
+        - script: |
+            g++ --version
+          condition: eq( variables['Agent.OS'], 'Linux' )
+          displayName: 'gcc version...'
+        - script: |
+            sudo apt-get -qq update ;
+            sudo pip install --upgrade pip
+          condition: eq( variables['Agent.OS'], 'Linux' )
+          displayName: 'Updating on Linux...'
+        - script: |
+            sudo apt-get install python-setuptools
+            sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
+            sudo apt-get install python-pyside pyside-tools ;
+            sudo pip install PyOpenGL ;
+          displayName: 'Installing prereqs on Linux'
+          condition: eq( variables['Agent.OS'], 'Linux' )
+        - script: |
+            sudo python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+          displayName: 'Running build_usd.py'
 
-steps:
-    - script: |
-        g++ --version
-      condition: eq( variables['Agent.OS'], 'Linux' )
-      displayName: 'gcc version...'
-    - script: |
-        sudo apt-get -qq update ;
-        sudo pip install --upgrade pip
-      condition: eq( variables['Agent.OS'], 'Linux' )
-      displayName: 'Updating on Linux...'
-    - script: |
-        sudo apt-get install python-setuptools
-        sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
-        sudo apt-get install python-pyside pyside-tools ;
-        sudo pip install PyOpenGL ;
-      displayName: 'Installing prereqs on Linux'
-      condition: eq( variables['Agent.OS'], 'Linux' )
-    - script: |
-        python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
-      displayName: 'Running build_usd.py'
+- job: Windows
+    pool:
+      vmImage: 'VS2017-Win2016'
+    steps:
+        - script: |
+            sudo python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+          displayName: 'Running build_usd.py'
+
+- job: macOS
+    pool:
+      vmImage: 'macOS-10.13'
+    steps:
+        - script: |
+            sudo python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+          displayName: 'Running build_usd.py'
