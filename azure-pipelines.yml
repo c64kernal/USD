@@ -11,13 +11,13 @@ jobs:
       sudo pip install --upgrade pip
     displayName: 'Updating on Linux...'
   - script: |
-    sudo apt-get install python-setuptools;
-    sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
-    sudo apt-get install python-pyside pyside-tools ;
-    sudo pip install PyOpenGL ;
+      sudo apt-get install python-setuptools;
+      sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
+      sudo apt-get install python-pyside pyside-tools ;
+      sudo pip install PyOpenGL ;
     displayName: 'Installing prereqs on Linux'
   - script: |
-    sudo python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+      sudo python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Running build_usd.py'
 
 - job: Windows
@@ -25,7 +25,7 @@ jobs:
     vmImage: 'VS2017-Win2016'
   steps:
   - script: |
-    sudo python build_scripts/build_usd.py -v --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
+      sudo python build_scripts/build_usd.py -v --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
     displayName: 'Running build_usd.py'
 
 - job: macOS
@@ -33,5 +33,5 @@ jobs:
     vmImage: 'macOS-10.13'
   steps:
   - script: |
-    sudo python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+      sudo python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Running build_usd.py'
