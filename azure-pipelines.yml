@@ -7,8 +7,8 @@ jobs:
     vmImage: 'Ubuntu-16.04'
   steps:
   - script: |
-    sudo apt-get -qq update;
-    sudo pip install --upgrade pip
+      sudo apt-get -qq update;
+      sudo pip install --upgrade pip
     displayName: 'Updating on Linux...'
   - script: |
     sudo apt-get install python-setuptools;
