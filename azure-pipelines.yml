@@ -3,15 +3,20 @@ trigger:
 
 pool:
   vmImage: 'Ubuntu-16.04'
+  vmImage: 'VS2017-Win2016'
+  vmImage: 'macOS-10.13'
 
 steps:
+    - script: |
+        g++ --version
+      condition: eq( variables['Agent.OS'], 'Linux' )
+      displayName: 'gcc version...'
     - script: |
         sudo apt-get -qq update ;
         sudo pip install --upgrade pip
       condition: eq( variables['Agent.OS'], 'Linux' )
       displayName: 'Updating on Linux...'
     - script: |
-        sudo apt-get install build-essential
         sudo apt-get install python-setuptools
         sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
         sudo apt-get install python-pyside pyside-tools ;
