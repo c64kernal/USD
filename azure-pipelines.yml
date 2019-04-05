@@ -17,7 +17,7 @@ jobs:
       sudo pip install PyOpenGL ;
     displayName: 'Installing prereqs on Linux'
   - script: |
-      sudo python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+      sudo python build_scripts/build_usd.py --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Running build_usd.py'
 
 - job: macOS
@@ -37,8 +37,8 @@ jobs:
     vmImage: 'VS2017-Win2016'
   steps:
   - script: |
-      pip install pyside2 ;
-      pip install PyOpenGL ;
+      python pip install pyside2 ;
+      python pip install PyOpenGL ;
     displayName: 'Installing dependencies on Windows'
   - script: |
       python build_scripts/build_usd.py -v --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
