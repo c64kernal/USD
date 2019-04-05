@@ -6,6 +6,10 @@ pool:
 
 steps:
     - script: |
+        sudo apt-get -qq update ;
+        sudo pip install --upgrade pip
+      displayName: 'Updating...'
+    - script: |
         sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
         sudo apt-get install python-pyside pyside-tools ;
         sudo pip install PyOpenGL ;
