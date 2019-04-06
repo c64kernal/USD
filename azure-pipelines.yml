@@ -25,15 +25,15 @@ jobs:
     vmImage: 'macOS-10.13'
   steps:
   - script: |
-      /bin/bash -c "sudo xcode-select -s /Applications/Xcode_10.1.app/Contents/Developer"      
-    displayName: 'Set up Xcode'
-  - script: |
+      uname -m
+      uname -r
+      uname -s
+      uname -v
+      /bin/bash -c "sudo xcode-select -s /Applications/Xcode_10.1.app/Contents/Developer"
       sudo pip install pyside2 ;
       sudo pip install PyOpenGL ;
-    displayName: 'Installing dependencies on macOS'
-  - script: |
       python build_scripts/build_usd.py -v --generator Xcode --no-imaging --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
-    displayName: 'Running build_usd.py'
+    displayName: 'Building USD'
 
 - job: Windows
   timeoutInMinutes: 90
@@ -52,4 +52,4 @@ jobs:
       call python -m pip install pyside
       call python -m pip install PyOpenGL
       call python build_scripts/build_usd.py --build-args USD,"-DPYTHON_EXECUTABLE:FILEPATH=C:/Python27amd64/python.exe" --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
-    displayName: 'Running build_usd.py'
+    displayName: 'Building USD'
