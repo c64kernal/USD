@@ -39,10 +39,10 @@ jobs:
   pool:
     vmImage: 'VS2017-Win2016'
   steps:
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '2.7'
-      architecture: 'x64'
+  #- task: UsePythonVersion@0
+  #  inputs:
+  #    versionSpec: '2.7'
+  #    architecture: 'x64'
   - script: |
       call C:\"Program Files (x86)"\"Microsoft Visual Studio"\2017\Enterprise\VC\Auxiliary\Build\vcvars64.bat
     displayName: 'Set up Visual Studio'
