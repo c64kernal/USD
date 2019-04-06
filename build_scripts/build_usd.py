@@ -309,7 +309,7 @@ def RunCMake(context, force, extraArgs = None):
                     generator=(generator or ""),
                     extraArgs=(" ".join(extraArgs) if extraArgs else "")))
         Run("cmake --build . --config {config} --target install -- {jobs}"
-            .format(config=config, jobs=multiproc)
+            .format(config=config, jobs=multiproc))
                     
 def PatchFile(filename, patches, multiLineMatches=False):
     """Applies patches to the specified file. patches is a list of tuples
