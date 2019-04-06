@@ -48,6 +48,7 @@ jobs:
     displayName: 'Set up Visual Studio'
   - script: |
       set PATH=C:/Python27amd64;C:/Python27amd64/Scripts;%PATH%
+      python --version
       call python -m pip install --upgrade pip
       call python -m pip install pyside
       call python -m pip install PyOpenGL
