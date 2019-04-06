@@ -32,7 +32,7 @@ jobs:
       sudo pip install PyOpenGL ;
     displayName: 'Installing dependencies on macOS'
   - script: |
-      python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+      python build_scripts/build_usd.py -v --generator Xcode --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Running build_usd.py'
 
 - job: Windows
@@ -47,7 +47,7 @@ jobs:
       call C:\"Program Files (x86)"\"Microsoft Visual Studio"\2017\Enterprise\VC\Auxiliary\Build\vcvars64.bat
     displayName: 'Set up Visual Studio'
   - script: |
-      call set PATH=C:/Python27amd64;C:/Python27amd64/Scripts;%PATH%
+      set PATH=C:/Python27amd64;C:/Python27amd64/Scripts;%PATH%
       call python -m pip install --upgrade pip
       call python -m pip install pyside
       call python -m pip install PyOpenGL
