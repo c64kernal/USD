@@ -48,11 +48,13 @@ jobs:
     displayName: 'Set up Visual Studio'
   - script: |
       set PATH=C:/Python27amd64;C:/Python27amd64/Scripts;%PATH%
-      python --version
+      call python --version
       call python -m pip install --upgrade pip
       call python -m pip install pyside
       call python -m pip install PyOpenGL
     displayName: 'Installing dependencies on Windows'
   - script: |
+      set PATH=C:/Python27amd64;C:/Python27amd64/Scripts;%PATH%
+      call python --version
       call python build_scripts/build_usd.py -v --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
     displayName: 'Running build_usd.py'
