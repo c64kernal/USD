@@ -25,11 +25,13 @@ jobs:
     vmImage: 'macOS-10.13'
   steps:
   - script: |
+      /bin/bash -c "sudo xcode-select -s /Applications/Xcode_10.1.app/Contents/Developer"      
+    displayName: 'Set up Xcode'
+  - script: |
       sudo pip install pyside2 ;
       sudo pip install PyOpenGL ;
     displayName: 'Installing dependencies on macOS'
   - script: |
-      /bin/bash -c "sudo xcode-select -s /Applications/Xcode_10.1.app/Contents/Developer"
       python build_scripts/build_usd.py -v --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Running build_usd.py'
 
