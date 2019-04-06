@@ -42,6 +42,7 @@ jobs:
       architecture: 'x64'
   - script: |
       C:\"Program Files (x86)"\"Microsoft Visual Studio"\2017\Enterprise\VC\Auxiliary\Build\vcvars64.bat
+      echo Wait for it...
       echo %VisualStudioVersion% ----- visual studio version
     displayName: 'Set up Visual Studio'
   - script: |
