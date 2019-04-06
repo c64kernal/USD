@@ -269,9 +269,6 @@ def RunCMake(context, force, extraArgs = None):
         else:
             generator = "Visual Studio 14 2015 Win64"
 
-    if generator is not None:
-        generator = '-G "{gen}"'.format(gen=generator)
-        
     multiproc = "-j{procs}"
     if Windows():
         multiproc = "/M:{procs}"
@@ -280,6 +277,9 @@ def RunCMake(context, force, extraArgs = None):
         multiproc = "-jobs {procs} -parallelizeTargets"
         
     multiproc = multiproc.format(procs=context.numJobs)
+            
+    if generator is not None:
+        generator = '-G "{gen}"'.format(gen=generator)
                 
     # On MacOS, enable the use of @rpath for relocatable builds.
     osx_rpath = None
