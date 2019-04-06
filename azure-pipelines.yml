@@ -29,6 +29,8 @@ jobs:
       uname -r
       uname -s
       uname -v
+      echo "----------"
+      /bin/bash -c "config.guess"
       /bin/bash -c "sudo xcode-select -s /Applications/Xcode_10.1.app/Contents/Developer"
       sudo pip install pyside2 ;
       sudo pip install PyOpenGL ;
