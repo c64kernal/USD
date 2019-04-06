@@ -271,6 +271,15 @@ def RunCMake(context, force, extraArgs = None):
 
     if generator is not None:
         generator = '-G "{gen}"'.format(gen=generator)
+        
+    multiproc = "-j{procs}"
+    if Windows():
+        multiproc = "/M:{procs}"
+    
+    if generator == "Xcode":
+        multiproc = "-jobs {procs} -parallelizeTargets"
+        
+    multiproc = multiproc.format(procs=context.numJobs)
                 
     # On MacOS, enable the use of @rpath for relocatable builds.
     osx_rpath = None
@@ -299,13 +308,9 @@ def RunCMake(context, force, extraArgs = None):
                     osx_rpath=(osx_rpath or ""),
                     generator=(generator or ""),
                     extraArgs=(" ".join(extraArgs) if extraArgs else "")))
-        Run("cmake --build . --config {config} --target install -- {multiproc}"
-            .format(config=config,
-                    multiproc=("/M:{procs}"
-                               if generator and "Visual Studio" in generator
-                               else "-j{procs}")
-                              .format(procs=context.numJobs)))
-
+        Run("cmake --build . --config {config} --target install -- {jobs}"
+            .format(config=config, jobs=multiproc)
+                    
 def PatchFile(filename, patches, multiLineMatches=False):
     """Applies patches to the specified file. patches is a list of tuples
     (old string, new string)."""
