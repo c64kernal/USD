@@ -36,6 +36,7 @@ jobs:
     displayName: 'Running build_usd.py'
 
 - job: Windows
+  timeoutInMinutes: 90
   pool:
     vmImage: 'VS2017-Win2016'
   steps:
@@ -50,5 +51,5 @@ jobs:
       call python -m pip install --upgrade pip
       call python -m pip install pyside
       call python -m pip install PyOpenGL
-      call python build_scripts/build_usd.py -v --build-args USD,"-DPYTHON_EXECUTABLE:FILEPATH=C:/Python27amd64/python.exe" --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
+      call python build_scripts/build_usd.py --build-args USD,"-DPYTHON_EXECUTABLE:FILEPATH=C:/Python27amd64/python.exe" --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
     displayName: 'Running build_usd.py'
