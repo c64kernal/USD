@@ -32,7 +32,7 @@ jobs:
       sudo pip install PyOpenGL ;
     displayName: 'Installing dependencies on macOS'
   - script: |
-      python build_scripts/build_usd.py -v --generator Xcode --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+      python build_scripts/build_usd.py -v --generator Xcode --no-imaging --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Running build_usd.py'
 
 - job: Windows
