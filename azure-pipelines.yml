@@ -32,7 +32,7 @@ jobs:
       /bin/bash -c "sudo xcode-select -s /Applications/Xcode_10.1.app/Contents/Developer"
       sudo pip install pyside2 ;
       sudo pip install PyOpenGL ;
-      python build_scripts/build_usd.py -v --generator Xcode --no-imaging --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
+      python build_scripts/build_usd.py -v --generator Xcode --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Building USD'
 
 - job: Windows
