@@ -31,6 +31,7 @@ jobs:
       uname -v
       echo "----------"
       /bin/bash -c "source config.guess"
+      unset SYSTEM
       /bin/bash -c "sudo xcode-select -s /Applications/Xcode_10.1.app/Contents/Developer"
       sudo pip install pyside2 ;
       sudo pip install PyOpenGL ;
