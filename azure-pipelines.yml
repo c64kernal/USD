@@ -9,16 +9,16 @@ jobs:
   - script: |
       sudo apt-get -qq update;
       sudo pip install --upgrade pip
-    displayName: 'Updating on Linux...'
-  - script: |
       sudo apt-get install python-setuptools;
       sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
       sudo apt-get install python-pyside pyside-tools ;
       sudo pip install PyOpenGL ;
-    displayName: 'Installing prereqs on Linux'
-  - script: |
       sudo python build_scripts/build_usd.py --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
-    displayName: 'Running build_usd.py'
+    displayName: 'Building USD'
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: 'usd-linux'
+      targetPath: "  /home/vsts/USDinst"
 
 - job: macOS
   pool:
@@ -32,16 +32,16 @@ jobs:
       sudo pip install PyOpenGL ;
       python build_scripts/build_usd.py -v --generator Xcode --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Building USD'
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: 'usd-macOS'
+      targetPath: "/Users/vsts/USDinst"
 
 - job: Windows
   timeoutInMinutes: 90
   pool:
     vmImage: 'VS2017-Win2016'
   steps:
-  #- task: UsePythonVersion@0
-  #  inputs:
-  #    versionSpec: '2.7'
-  #    architecture: 'x64'
   - script: |
       call C:\"Program Files (x86)"\"Microsoft Visual Studio"\2017\Enterprise\VC\Auxiliary\Build\vcvars64.bat
       call set PATH=C:/Python27amd64;C:/Python27amd64/Scripts;%PATH%
@@ -51,3 +51,7 @@ jobs:
       call python -m pip install PyOpenGL
       call python build_scripts/build_usd.py --build-args USD,"-DPYTHON_EXECUTABLE:FILEPATH=C:/Python27amd64/python.exe" --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
     displayName: 'Building USD'
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: 'usd-win64'
+      targetPath: "D:/USDinst"
