@@ -25,12 +25,7 @@ jobs:
     vmImage: 'macOS-10.13'
   steps:
   - script: |
-      uname -m
-      uname -r
-      uname -s
-      uname -v
-      echo "----------"
-      /bin/bash -c "source config.guess"
+      # The SYSTEM env var is used by the Makefile of glew and having it set trips it up
       unset SYSTEM
       /bin/bash -c "sudo xcode-select -s /Applications/Xcode_10.1.app/Contents/Developer"
       sudo pip install pyside2 ;
