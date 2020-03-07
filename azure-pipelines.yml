@@ -13,7 +13,8 @@ jobs:
       sudo pip install --upgrade pip
       sudo apt-get install python-setuptools;
       sudo apt-get install libglew-dev libxrandr-dev libxcursor-dev libxinerama-dev libxi-dev;
-      sudo apt-get install python-pyside2 pyside2-tools ;
+      #sudo apt-get install python-pyside2 pyside2-tools ;
+      sudo pip install PySide2 ;
       sudo pip install PyOpenGL ;
       sudo python build_scripts/build_usd.py --build $HOME/USDgen/build --src $HOME/USDgen/src $HOME/USDinst
     displayName: 'Building USD'
@@ -49,7 +50,7 @@ jobs:
       call set PATH=C:/Python27amd64;C:/Python27amd64/Scripts;%PATH%
       call python --version
       call python -m pip install --upgrade pip
-      call python -m pip install pyside2
+      call python -m pip install PySide2
       call python -m pip install PyOpenGL
       call python build_scripts/build_usd.py --build-args USD,"-DPYTHON_EXECUTABLE:FILEPATH=C:/Python27amd64/python.exe" --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
     displayName: 'Building USD'
