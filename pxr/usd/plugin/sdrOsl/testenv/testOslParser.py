@@ -22,16 +22,17 @@
 # KIND, either express or implied. See the Apache License for the specific
 # language governing permissions and limitations under the Apache License.
 
+import os
 import unittest
 from pxr import Ndr
 from pxr import SdrOsl
 from pxr.Sdr import shaderParserTestUtils as utils
 
-
 class TestShaderNode(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.URI = "TestNodeOSL.oso"
+        cls.uri = "TestNodeOSL.oso"
+        cls.resolvedUri = os.path.abspath(cls.uri)
 
         cls.sourceCode="TestNode source code"
         cls.metadata = {"extra": "extraMetadata", 
@@ -45,11 +46,12 @@ class TestShaderNode(unittest.TestCase):
             "",              # Family
             "oso",           # Discovery type (extension)
             "OSL",           # Source type
-            cls.URI,         # URI
-            cls.URI,         # Resolved URI
+            cls.uri,         # URI
+            cls.resolvedUri, # Resolved URI
             sourceCode=cls.sourceCode,
             metadata=cls.metadata,
-            blindData=cls.blindData
+            blindData=cls.blindData,
+            subIdentifier=""
         )
 
         cls.node = SdrOsl.OslParser().Parse(discoveryResult)
@@ -72,7 +74,8 @@ class TestShaderNode(unittest.TestCase):
 
         utils.TestBasicNode(self.node,
                             "OSL",
-                            self.URI)
+                            self.uri,
+                            self.resolvedUri)
 
     def test_ShaderSpecific(self):
         """
@@ -81,6 +84,38 @@ class TestShaderNode(unittest.TestCase):
 
         utils.TestShaderSpecificNode(self.node)
 
+    def test_ShaderProperties(self):
+        """
+        Test property correctness on the "TestShaderPropertiesNodeOSL" node.
+
+        See shaderParserTestUtils TestShaderPropertiesNode method for detailed
+        description of the test.
+        """
+        uri = "TestShaderPropertiesNodeOSL.oso"
+        resolvedUri = os.path.abspath(uri)
+        sourceCode = ""
+        metadata = {}
+        blindData = ""
+        subIdentifier = ""
+
+        discoveryResult = Ndr.NodeDiscoveryResult(
+            "TestShaderPropertiesNodeOSL",  # Identifier
+            Ndr.Version(),                  # Version
+            "TestShaderPropertiesNodeOSL",  # Name
+            "",                             # Family
+            "oso",                          # Discovery type (extension)
+            "OSL",                          # Source type
+            uri,                            # URI
+            resolvedUri,                    # Resolved URI
+            sourceCode,                     # sourceCode
+            metadata,                       # metadata
+            blindData,                      # blindData
+            subIdentifier                   # subIdentifier
+        )
+        node = SdrOsl.OslParser().Parse(discoveryResult)
+        assert node is not None
+
+        utils.TestShaderPropertiesNode(node)
 
 if __name__ == '__main__':
     unittest.main()

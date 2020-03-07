@@ -21,13 +21,13 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#ifndef HDEMBREE_RENDER_DELEGATE_H
-#define HDEMBREE_RENDER_DELEGATE_H
+#ifndef PXR_IMAGING_PLUGIN_HD_EMBREE_RENDER_DELEGATE_H
+#define PXR_IMAGING_PLUGIN_HD_EMBREE_RENDER_DELEGATE_H
 
 #include "pxr/pxr.h"
 #include "pxr/imaging/hd/renderDelegate.h"
 #include "pxr/imaging/hd/renderThread.h"
-#include "pxr/imaging/hdEmbree/renderer.h"
+#include "pxr/imaging/plugin/hdEmbree/renderer.h"
 #include "pxr/base/tf/staticTokens.h"
 
 #include <mutex>
@@ -116,6 +116,15 @@ public:
     /// UI.
     virtual HdRenderSettingDescriptorList
         GetRenderSettingDescriptors() const override;
+
+    /// Return true to indicate that pausing and resuming are supported.
+    virtual bool IsPauseSupported() const override;
+
+    /// Pause background rendering threads.
+    virtual bool Pause() override;
+
+    /// Resume background rendering threads.
+    virtual bool Resume() override;
 
     /// Create a renderpass. Hydra renderpasses are responsible for drawing
     /// a subset of the scene (specified by the "collection" parameter) to the
@@ -229,6 +238,10 @@ public:
     virtual HdAovDescriptor
         GetDefaultAovDescriptor(TfToken const& name) const override;
 
+    /// This function allows the renderer to report back some useful statistics
+    /// that the application can display to the user.
+    virtual VtDictionary GetRenderStats() const override;
+
 private:
     static const TfTokenVector SUPPORTED_RPRIM_TYPES;
     static const TfTokenVector SUPPORTED_SPRIM_TYPES;
@@ -278,4 +291,4 @@ private:
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // HDEMBREE_RENDER_DELEGATE_H
+#endif // PXR_IMAGING_PLUGIN_HD_EMBREE_RENDER_DELEGATE_H

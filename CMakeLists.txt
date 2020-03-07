@@ -59,12 +59,8 @@ if (${PXR_BUILD_KATANA_PLUGIN})
     add_subdirectory(third_party/katana)
 endif()
 
-if (${PXR_BUILD_MAYA_PLUGIN})
-    add_subdirectory(third_party/maya)
-endif()
-
-if (${PXR_BUILD_HOUDINI_PLUGIN})
-    add_subdirectory(third_party/houdini)
+if (${PXR_BUILD_PRMAN_PLUGIN})
+    add_subdirectory(third_party/renderman-${RENDERMAN_VERSION_MAJOR})
 endif()
 
 if (${PXR_BUILD_DOCUMENTATION})

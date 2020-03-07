@@ -22,9 +22,9 @@
 // language governing permissions and limitations under the Apache License.
 //
 #include "pxr/pxr.h"
-#include "pxr/usd/usdAbc/alembicFileFormat.h"
+#include "pxr/usd/plugin/usdAbc/alembicFileFormat.h"
 
-#include "pxr/usd/usdAbc/alembicData.h"
+#include "pxr/usd/plugin/usdAbc/alembicData.h"
 #include "pxr/usd/usd/usdaFileFormat.h"
 
 #include "pxr/usd/sdf/layer.h"
@@ -148,13 +148,6 @@ UsdAbcAlembicFileFormat::WriteToStream(
     //      get here trying to write an Alembic layer as usda.  So we
     //      turn around call usda.
     return _usda->WriteToStream(spec, out, indent);
-}
-
-bool 
-UsdAbcAlembicFileFormat::_IsStreamingLayer(
-    const SdfLayer& layer) const
-{
-    return true;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

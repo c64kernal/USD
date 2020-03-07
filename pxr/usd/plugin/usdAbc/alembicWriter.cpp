@@ -24,8 +24,8 @@
 /// \file alembicWriter.cpp
 
 #include "pxr/pxr.h"
-#include "pxr/usd/usdAbc/alembicWriter.h"
-#include "pxr/usd/usdAbc/alembicUtil.h"
+#include "pxr/usd/plugin/usdAbc/alembicWriter.h"
+#include "pxr/usd/plugin/usdAbc/alembicUtil.h"
 #include "pxr/usd/usdGeom/tokens.h"
 #include "pxr/usd/usdGeom/xformOp.h"
 #include "pxr/usd/sdf/schema.h"
@@ -44,9 +44,9 @@
 #include <Alembic/AbcGeom/OXform.h>
 #include <Alembic/AbcGeom/Visibility.h>
 #include <Alembic/AbcCoreOgawa/All.h>
-#include <boost/function.hpp>
 #include <boost/functional/hash.hpp>
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <set>
 #include <type_traits>
@@ -128,8 +128,8 @@ public:
                const TfToken& propertyName,
                const SdfAbstractData& data);
 
-    /// Returns an id.
-    SdfAbstractDataSpecId GetId() const;
+    /// Returns a path.
+    SdfPath GetPath() const;
 
     /// Returns \c true iff there are no samples.
     bool IsEmpty() const;
@@ -165,8 +165,7 @@ private:
     void _Clear();
 
 private:
-    SdfPath _path;
-    TfToken _name;
+    SdfPath _propPath;
     const SdfAbstractData* _data;
     boost::shared_ptr<VtValue> _value;
     boost::shared_ptr<SdfTimeSampleMap> _local;
@@ -176,8 +175,7 @@ private:
 };
 
 UsdSamples::UsdSamples(const SdfPath& primPath, const TfToken& propertyName) :
-    _path(primPath),
-    _name(propertyName),
+    _propPath(primPath.AppendProperty(propertyName)),
     _data(NULL)
 {
     _Clear();
@@ -187,13 +185,11 @@ UsdSamples::UsdSamples(
     const SdfPath& primPath,
     const TfToken& propertyName,
     const SdfAbstractData& data) :
-    _path(primPath),
-    _name(propertyName),
+    _propPath(primPath.AppendProperty(propertyName)),
     _data(&data)
 {
     VtValue value;
-    SdfAbstractDataSpecId id(&_path, &_name);
-    if (data.Has(id, SdfFieldKeys->TimeSamples, &value)) {
+    if (data.Has(_propPath, SdfFieldKeys->TimeSamples, &value)) {
         if (TF_VERIFY(value.IsHolding<SdfTimeSampleMap>())) {
             _value.reset(new VtValue);
             _value->Swap(value);
@@ -205,7 +201,7 @@ UsdSamples::UsdSamples(
             return;
         }
     }
-    else if (data.Has(id, SdfFieldKeys->Default, &value)) {
+    else if (data.Has(_propPath, SdfFieldKeys->Default, &value)) {
         _local.reset(new SdfTimeSampleMap);
         (*_local)[0.0].Swap(value);
         _samples       = _local.get();
@@ -215,8 +211,8 @@ UsdSamples::UsdSamples(
         _Clear();
         return;
     }
-    if (TF_VERIFY(data.Has(id, SdfFieldKeys->TypeName, &value),
-                  "No type name on <%s>", id.GetFullSpecPath().GetText())) {
+    if (TF_VERIFY(data.Has(_propPath, SdfFieldKeys->TypeName, &value),
+                  "No type name on <%s>", _propPath.GetText())) {
         if (TF_VERIFY(value.IsHolding<TfToken>())) {
             _typeName =
                 SdfSchema::GetInstance().
@@ -244,7 +240,7 @@ restart:
             if (!TF_VERIFY(v.second.GetType() == backupType,
                               "Expected sample at <%s> time %f of type '%s', "
                               "got '%s'",
-                              GetId().GetFullSpecPath().GetText(),
+                              GetPath().GetText(),
                               v.first, type.GetTypeName().c_str(),
                               v.second.GetType().GetTypeName().c_str())) {
                 _Clear();
@@ -277,10 +273,10 @@ UsdSamples::_Clear()
     _typeName      = SdfValueTypeName();
 }
 
-SdfAbstractDataSpecId
-UsdSamples::GetId() const
+SdfPath
+UsdSamples::GetPath() const
 {
-    return SdfAbstractDataSpecId(&_path, &_name);
+    return _propPath;
 }
 
 bool
@@ -310,8 +306,7 @@ UsdSamples::GetTypeName() const
 VtValue
 UsdSamples::GetField(const TfToken& name) const
 {
-    SdfAbstractDataSpecId id(&_path, &_name);
-    return _data->Get(id, name);
+    return _data->Get(_propPath, name);
 }
 
 const VtValue&
@@ -526,7 +521,7 @@ class _PrimWriterContext;
 /// previous via a \c _PrimWriterContext.
 class _WriterSchema {
 public:
-    typedef boost::function<void (_PrimWriterContext*)> PrimWriter;
+    typedef std::function<void (_PrimWriterContext*)> PrimWriter;
     typedef std::vector<PrimWriter> PrimWriterVector;
     typedef UsdAbc_AlembicDataConversion::FromUsdConverter Converter;
 
@@ -614,7 +609,7 @@ _WriterSchema::GetPrimWriters(const TfToken& name) const
 bool
 _WriterSchema::IsValid(const UsdSamples& samples) const
 {
-    return GetConverter(samples.GetTypeName());
+    return GetConverter(samples.GetTypeName()) ? true : false;
 }
 
 bool
@@ -676,10 +671,9 @@ public:
     void SetData(const SdfAbstractDataConstPtr& data) { 
         _data = data; 
         VtValue tcps;
-        SdfPath path = SdfPath::AbsoluteRootPath();
-        if (data->Has(SdfAbstractDataSpecId(&path),
-                      SdfFieldKeys->TimeCodesPerSecond, &tcps)){
-            if (tcps.IsHolding<double>()){
+        if (data->Has(SdfPath::AbsoluteRootPath(),
+                      SdfFieldKeys->TimeCodesPerSecond, &tcps)) {
+            if (tcps.IsHolding<double>()) {
                 _timeScale = tcps.UncheckedGet<double>();
             }
         }
@@ -849,10 +843,10 @@ public:
 
     _PrimWriterContext(_WriterContext&,
                        const Parent& parent,
-                       const SdfAbstractDataSpecId& id);
+                       const SdfPath& path);
 
     /// Return the path to this prim.
-    const SdfPath& GetPath() const;
+    SdfPath GetPath() const;
 
     /// Returns the Usd field from the prim.
     VtValue GetField(const TfToken& fieldName) const;
@@ -860,9 +854,6 @@ public:
     /// Returns the Usd field from the named property.
     VtValue GetPropertyField(const TfToken& propertyName,
                              const TfToken& fieldName) const;
-
-    /// Returns the archive.
-    const OArchive& GetArchive() const;
 
     /// Returns the archive.
     OArchive& GetArchive();
@@ -985,7 +976,7 @@ private:
 
     _WriterContext& _context;
     Parent _parent;
-    SdfAbstractDataSpecId _id;
+    SdfPath _path;
     std::string _suffix;
     UsdAbc_TimeSamples _sampleTimes;
     TfTokenVector _unextracted;
@@ -994,30 +985,31 @@ private:
 _PrimWriterContext::_PrimWriterContext(
     _WriterContext& context,
     const Parent& parent,
-    const SdfAbstractDataSpecId& id) :
+    const SdfPath& path) :
     _context(context),
     _parent(parent),
-    _id(id)
+    _path(path)
 {
     // Fill _unextracted with all of the property names.
     VtValue tmp;
-    if (_context.GetData().Has(id, SdfChildrenKeys->PropertyChildren, &tmp)) {
+    if (_context.GetData().Has(
+            _path, SdfChildrenKeys->PropertyChildren, &tmp)) {
         if (tmp.IsHolding<TfTokenVector>()) {
             _unextracted = tmp.UncheckedGet<TfTokenVector>();
         }
     }
 }
 
-const SdfPath&
+SdfPath
 _PrimWriterContext::GetPath() const
 {
-    return _id.GetPropertyOwningSpecPath();
+    return _path.IsPropertyPath() ? _path.GetParentPath() : _path;
 }
 
 VtValue
 _PrimWriterContext::GetField(const TfToken& fieldName) const
 {
-    return _context.GetData().Get(_id, fieldName);
+    return _context.GetData().Get(_path, fieldName);
 }
 
 VtValue
@@ -1025,15 +1017,8 @@ _PrimWriterContext::GetPropertyField(
     const TfToken& propertyName,
     const TfToken& fieldName) const
 {
-    const SdfAbstractDataSpecId propId(&_id.GetPropertyOwningSpecPath(),
-                                       &propertyName);
-    return _context.GetData().Get(propId, fieldName);
-}
-
-const OArchive&
-_PrimWriterContext::GetArchive() const
-{
-    return _context.GetArchive();
+    return _context.GetData().Get(
+        GetPath().AppendProperty(propertyName), fieldName);
 }
 
 OArchive&
@@ -1057,9 +1042,8 @@ _PrimWriterContext::GetData() const
 SdfSpecType
 _PrimWriterContext::GetSpecType(const TfToken& propertyName) const
 {
-    const SdfAbstractDataSpecId propId(&_id.GetPropertyOwningSpecPath(),
-                                       &propertyName);
-    return _context.GetData().GetSpecType(propId);
+    return _context.GetData().GetSpecType(
+        GetPath().AppendProperty(propertyName));
 }
 
 bool
@@ -1099,7 +1083,7 @@ _PrimWriterContext::GetAlembicPrimName() const
     // XXX: Should verify this name is not in use, however we know
     //      we're not given how we use it (we only add a suffix to
     //      an only child).
-    return _id.GetPropertyOwningSpecPath().GetName() + _suffix;
+    return GetPath().GetName() + _suffix;
 }
 
 std::string
@@ -1392,7 +1376,7 @@ _CheckSample(
     if (sample.IsError(&message)) {
         TF_WARN("Can't convert from '%s' on <%s>: %s",
                 usdType.GetAsToken().GetText(),
-                samples.GetId().GetFullSpecPath().GetText(),
+                samples.GetPath().GetText(),
                 message.c_str());
         return false;
     }
@@ -2265,7 +2249,7 @@ void
 _WriteNamespacedPropertyGroup(
     _PrimWriterContext* context,
     const TfToken& namespaceName,
-    const boost::function<OCompoundProperty()>& getParentProperty)
+    const std::function<OCompoundProperty()>& getParentProperty)
 {
     // First check if there are any properties to convert.  We only ask
     // for that property if so, because asking for it will create it on
@@ -2367,15 +2351,15 @@ _WriteMayaColor(_PrimWriterContext* context)
 
     UsdSamples color(context->GetPath(), displayColor);
     if (context->GetData().HasSpec(
-            SdfAbstractDataSpecId(&context->GetPath(), &displayColor))) {
+            context->GetPath().AppendProperty(displayColor))) {
         color =
             UsdSamples(context->GetPath(), displayColor, context->GetData());
     }
     if (color.IsEmpty()) {
         // Copy existing Maya color.
         if (! _WriteOutOfSchemaProperty(context,
-                                          context->GetParent().GetSchema(),
-                                          name, name)) {
+                                        context->GetParent().GetSchema(),
+                                        name, name)) {
             return;
         }
     }
@@ -2532,12 +2516,15 @@ _WriteRoot(_PrimWriterContext* context)
 template <class T>
 static 
 bool _ExtractWithFallback(UsdSamples const &samples, double time,
-                          TfToken const &primType, TfToken const &propertyName,
+                          const UsdPrimDefinition *primDef, 
+                          TfToken const &propertyName,
                           T *val)
 {
     if (samples.IsEmpty()){
-        return UsdSchemaRegistry::HasField(primType, propertyName,
-                                           SdfFieldKeys->Default, val);
+        if (!primDef) {
+            return false;
+        }
+        return primDef->HasField(propertyName, SdfFieldKeys->Default, val);
     }
     
     const VtValue value = samples.Get(time);
@@ -2592,6 +2579,9 @@ _WriteCameraParameters(_PrimWriterContext* context)
         context->ExtractSamples(UsdGeomTokens->clippingRange,
                                 SdfValueTypeNames->Float2);
 
+    const UsdPrimDefinition *primDef =
+        UsdSchemaRegistry::GetInstance().FindConcretePrimDefinition(primType);
+
     // Copy all the samples to set up alembic camera frustum.
     typedef CameraSample SampleT;
     for (double time : context->GetSampleTimesUnion()) {
@@ -2602,7 +2592,7 @@ _WriteCameraParameters(_PrimWriterContext* context)
             // Horizontal aperture is in cm in ABC, but mm in USD
             float value;
             if (_ExtractWithFallback(horizontalAperture, time, 
-                                     primType, 
+                                     primDef, 
                                      UsdGeomTokens->horizontalAperture,
                                      &value)){
                 sample.setHorizontalAperture(value / 10.0);
@@ -2613,7 +2603,7 @@ _WriteCameraParameters(_PrimWriterContext* context)
             // Vertical aperture is in cm in ABC, but mm in USD
             float value;
             if (_ExtractWithFallback(verticalAperture, time, 
-                                     primType, UsdGeomTokens->verticalAperture,
+                                     primDef, UsdGeomTokens->verticalAperture,
                                      &value)){
                 sample.setVerticalAperture(value / 10.0);
             }
@@ -2623,7 +2613,7 @@ _WriteCameraParameters(_PrimWriterContext* context)
             // Horizontal aperture is in cm in ABC, but mm in USD
             float value;
             if (_ExtractWithFallback(horizontalApertureOffset, time, 
-                                     primType, 
+                                     primDef, 
                                      UsdGeomTokens->horizontalApertureOffset,
                                      &value)){
                 sample.setHorizontalFilmOffset(value / 10.0);
@@ -2634,7 +2624,7 @@ _WriteCameraParameters(_PrimWriterContext* context)
             // Vertical aperture is in cm in ABC, but mm in USD
             float value;
             if (_ExtractWithFallback(verticalApertureOffset, time, 
-                                     primType, 
+                                     primDef, 
                                      UsdGeomTokens->verticalApertureOffset,
                                      &value)){
                 sample.setVerticalFilmOffset(value / 10.0);
@@ -2645,7 +2635,7 @@ _WriteCameraParameters(_PrimWriterContext* context)
             // Focal length in USD and ABC is both in mm
             float value;
             if (_ExtractWithFallback(focalLength, time, 
-                                     primType, UsdGeomTokens->focalLength,
+                                     primDef, UsdGeomTokens->focalLength,
                                      &value)){
                 sample.setFocalLength(value);
             }
@@ -2654,7 +2644,7 @@ _WriteCameraParameters(_PrimWriterContext* context)
         {
             GfVec2f value;
             if (_ExtractWithFallback(clippingRange, time, 
-                                     primType, UsdGeomTokens->clippingRange,
+                                     primDef, UsdGeomTokens->clippingRange,
                                      &value)){
                 sample.setNearClippingPlane(value[0]);
                 sample.setFarClippingPlane(value[1]);
@@ -2930,10 +2920,9 @@ _WriteFaceSet(_PrimWriterContext* context)
     // The familyType is contained in the parent prim, so we 
     // contruct a new _PrimWriterContext to access it.
     SdfPath parentPath = context->GetPath().GetParentPath();
-    SdfAbstractDataSpecId parentSpecId(&parentPath);
     _PrimWriterContext parentPrimContext(context->GetWriterContext(),
                                          context->GetParent(),
-                                         parentSpecId);
+                                         parentPath);
 
     UsdSamples familyType = parentPrimContext.ExtractSamples(
         UsdAbcPropertyNames->defaultFamilyTypeAttributeName,
@@ -3417,15 +3406,15 @@ static
 TfToken
 _ComputeTypeName(
     const _WriterContext& context,
-    const SdfAbstractDataSpecId& id)
+    const SdfPath& path)
 {
     // Special case.
-    if (id.GetPropertyOwningSpecPath() == SdfPath::AbsoluteRootPath()) {
+    if (path == SdfPath::AbsoluteRootPath()) {
         return UsdAbcPrimTypeNames->PseudoRoot;
     }
 
     // General case.
-    VtValue value = context.GetData().Get(id, SdfFieldKeys->TypeName);
+    VtValue value = context.GetData().Get(path, SdfFieldKeys->TypeName);
     if (! value.IsHolding<TfToken>()) {
         return TfToken();
     }
@@ -3433,9 +3422,10 @@ _ComputeTypeName(
 
     // Special cases.
     if (typeName == UsdAbcPrimTypeNames->Mesh) {
-        SdfAbstractDataSpecId propId(&id.GetPropertyOwningSpecPath(),
-                                     &UsdGeomTokens->subdivisionScheme);
-        value = context.GetData().Get(propId, SdfFieldKeys->Default);
+        
+        SdfPath propPath(path.GetPrimPath().AppendProperty(
+                             UsdGeomTokens->subdivisionScheme));
+        value = context.GetData().Get(propPath, SdfFieldKeys->Default);
         if (value.IsHolding<TfToken>() && 
                 value.UncheckedGet<TfToken>() == "none") {
             typeName = UsdAbcPrimTypeNames->PolyMesh;
@@ -3452,16 +3442,15 @@ _WritePrim(
     const _Parent& parent,
     const SdfPath& path)
 {
-    SdfAbstractDataSpecId id(&path);
-
     _Parent prim;
     {
         // Compute the type name.
-        const TfToken typeName = _ComputeTypeName(context, id);
+        const TfToken typeName = _ComputeTypeName(context, path);
 
         // Write the properties.
-        _PrimWriterContext primContext(context, parent, id);
-        for (const auto& writer : context.GetSchema().GetPrimWriters(typeName)) {
+        _PrimWriterContext primContext(context, parent, path);
+        for (const auto& writer :
+                 context.GetSchema().GetPrimWriters(typeName)) {
             TRACE_SCOPE("UsdAbc_AlembicDataWriter:_WritePrim");
             writer(&primContext);
         }
@@ -3470,9 +3459,10 @@ _WritePrim(
 
     // Write the name children.
     const VtValue childrenNames =
-        context.GetData().Get(id, SdfChildrenKeys->PrimChildren);
+        context.GetData().Get(path, SdfChildrenKeys->PrimChildren);
     if (childrenNames.IsHolding<TfTokenVector>()) {
-        for (const auto& childName : childrenNames.UncheckedGet<TfTokenVector>()) {
+        for (const auto& childName :
+                 childrenNames.UncheckedGet<TfTokenVector>()) {
             _WritePrim(context, prim, path.AppendChild(childName));
         }
     }

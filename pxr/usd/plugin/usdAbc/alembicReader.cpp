@@ -24,8 +24,8 @@
 /// \file alembicReader.cpp
 
 #include "pxr/pxr.h"
-#include "pxr/usd/usdAbc/alembicReader.h"
-#include "pxr/usd/usdAbc/alembicUtil.h"
+#include "pxr/usd/plugin/usdAbc/alembicReader.h"
+#include "pxr/usd/plugin/usdAbc/alembicUtil.h"
 #include "pxr/usd/usdGeom/tokens.h"
 #include "pxr/usd/usdGeom/xformable.h"
 #include "pxr/usd/sdf/schema.h"
@@ -62,6 +62,7 @@
 #include <Alembic/AbcGeom/IXform.h>
 #include <Alembic/AbcGeom/SchemaInfoDeclarations.h>
 #include <Alembic/AbcGeom/Visibility.h>
+#include <functional>
 #include <memory>
 #include <mutex>
 
@@ -94,6 +95,12 @@ TF_DEFINE_ENV_SETTING(
 TF_DEFINE_ENV_SETTING(
     USD_ABC_XFORM_PRIM_COLLAPSE, true,
     "Collapse Xforms containing a single geometry into a single geom Prim in USD");
+
+#if ALEMBIC_LIBRARY_VERSION >= 10709
+TF_DEFINE_ENV_SETTING(
+    USD_ABC_READ_ARCHIVE_USE_MMAP, false,
+    "Use mmap when reading from an Ogawa archive.");
+#endif
 
 namespace {
 
@@ -382,14 +389,15 @@ _GetDoubleMetadata(
 //
 
 // Helpers for \c AlembicProperty.
-template <class T, class Enable = void>
+template <class T>
 struct _AlembicPropertyHelper {
 //  T operator()(const ICompoundProperty& parent, const std::string& name)const;
 };
 template <>
 struct _AlembicPropertyHelper<ICompoundProperty> {
     ICompoundProperty
-    operator()(const ICompoundProperty& parent, const std::string& name) const
+    operator()(const ICompoundProperty& parent, const std::string& name,
+               SchemaInterpMatching matching = kStrictMatching) const
     {
         if (const PropertyHeader* header = parent.getPropertyHeader(name)) {
             if (header->isCompound()) {
@@ -402,7 +410,8 @@ struct _AlembicPropertyHelper<ICompoundProperty> {
 template <>
 struct _AlembicPropertyHelper<IScalarProperty> {
     IScalarProperty
-    operator()(const ICompoundProperty& parent, const std::string& name) const
+    operator()(const ICompoundProperty& parent, const std::string& name,
+               SchemaInterpMatching matching = kStrictMatching) const
     {
         if (const PropertyHeader* header = parent.getPropertyHeader(name)) {
             if (header->isScalar()) {
@@ -415,10 +424,11 @@ struct _AlembicPropertyHelper<IScalarProperty> {
 template <class T>
 struct _AlembicPropertyHelper<ITypedScalarProperty<T> > {
     ITypedScalarProperty<T>
-    operator()(const ICompoundProperty& parent, const std::string& name) const
+    operator()(const ICompoundProperty& parent, const std::string& name,
+               SchemaInterpMatching matching = kStrictMatching) const
     {
         if (const PropertyHeader* header = parent.getPropertyHeader(name)) {
-            if (ITypedScalarProperty<T>::matches(*header)) {
+            if (ITypedScalarProperty<T>::matches(*header, matching)) {
                 return ITypedScalarProperty<T>(parent, name);
             }
         }
@@ -428,7 +438,8 @@ struct _AlembicPropertyHelper<ITypedScalarProperty<T> > {
 template <>
 struct _AlembicPropertyHelper<IArrayProperty> {
     IArrayProperty
-    operator()(const ICompoundProperty& parent, const std::string& name) const
+    operator()(const ICompoundProperty& parent, const std::string& name,
+               SchemaInterpMatching matching = kStrictMatching) const
     {
         if (const PropertyHeader* header = parent.getPropertyHeader(name)) {
             if (header->isArray()) {
@@ -441,10 +452,11 @@ struct _AlembicPropertyHelper<IArrayProperty> {
 template <class T>
 struct _AlembicPropertyHelper<ITypedArrayProperty<T> > {
     ITypedArrayProperty<T>
-    operator()(const ICompoundProperty& parent, const std::string& name) const
+    operator()(const ICompoundProperty& parent, const std::string& name,
+               SchemaInterpMatching matching = kStrictMatching) const
     {
         if (const PropertyHeader* header = parent.getPropertyHeader(name)) {
-            if (ITypedArrayProperty<T>::matches(*header)) {
+            if (ITypedArrayProperty<T>::matches(*header, matching)) {
                 return ITypedArrayProperty<T>(parent, name);
             }
         }
@@ -454,10 +466,11 @@ struct _AlembicPropertyHelper<ITypedArrayProperty<T> > {
 template <class T>
 struct _AlembicPropertyHelper<ITypedGeomParam<T> > {
     ITypedGeomParam<T>
-    operator()(const ICompoundProperty& parent, const std::string& name) const
+    operator()(const ICompoundProperty& parent, const std::string& name,
+               SchemaInterpMatching matching = kStrictMatching) const
     {
         if (const PropertyHeader* header = parent.getPropertyHeader(name)) {
-            if (ITypedGeomParam<T>::matches(*header)) {
+            if (ITypedGeomParam<T>::matches(*header, matching)) {
                 return ITypedGeomParam<T>(parent, name);
             }
         }
@@ -480,9 +493,6 @@ public:
     AlembicProperty(const SdfPath& path, const std::string& name,
                     const ICompoundProperty& parent);
 
-    /// Returns the Usd path for this property.
-    const SdfPath& GetPath() const;
-
     /// Returns the parent compound property.
     ICompoundProperty GetParent() const;
 
@@ -498,10 +508,10 @@ public:
     /// you'll get an object of the requested type but its valid()
     /// method will return \c false.
     template <class T>
-    T Cast() const
+    T Cast(SchemaInterpMatching matching = kStrictMatching) const
     {
         if (_parent.valid()) {
-            return _AlembicPropertyHelper<T>()(_parent, _name);
+            return _AlembicPropertyHelper<T>()(_parent, _name, matching);
         }
         else {
             return T();
@@ -540,12 +550,6 @@ AlembicProperty::AlembicProperty(
     // Do nothing
 }
 
-const SdfPath&
-AlembicProperty::GetPath() const
-{
-    return _path;
-}
-
 ICompoundProperty
 AlembicProperty::GetParent() const
 {
@@ -576,7 +580,7 @@ AlembicProperty::GetHeader() const
 /// previous via a \c _PrimReaderContext.
 class _ReaderSchema {
 public:
-    typedef boost::function<void (_PrimReaderContext*)> PrimReader;
+    typedef std::function<void (_PrimReaderContext*)> PrimReader;
     typedef std::vector<PrimReader> PrimReaderVector;
     typedef UsdAbc_AlembicDataConversion::ToUsdConverter Converter;
 
@@ -655,8 +659,8 @@ _ReaderSchema::GetPrimReaders(const std::string& schema) const
 class _ReaderContext {
 public:
     /// Gets data from some property at a given sample.
-    typedef boost::function<bool (const UsdAbc_AlembicDataAny&,
-                                  const ISampleSelector&)> Converter;
+    typedef std::function<bool (const UsdAbc_AlembicDataAny&,
+                                const ISampleSelector&)> Converter;
 
     /// An optional ordering of name children or properties.
     typedef boost::optional<TfTokenVector> Ordering;
@@ -753,20 +757,20 @@ public:
     /// @{
 
     /// Test for the existence of a spec at \p id.
-    bool HasSpec(const SdfAbstractDataSpecId& id) const;
+    bool HasSpec(const SdfPath& path) const;
 
     /// Returns the spec type for the spec at \p id.
-    SdfSpecType GetSpecType(const SdfAbstractDataSpecId& id) const;
+    SdfSpecType GetSpecType(const SdfPath& path) const;
 
     /// Test for the existence of and optionally return the value at
-    /// (\p id,\p fieldName).
-    bool HasField(const SdfAbstractDataSpecId& id,
+    /// (\p path,\p fieldName).
+    bool HasField(const SdfPath& path,
                   const TfToken& fieldName,
                   const UsdAbc_AlembicDataAny& value) const;
 
     /// Test for the existence of and optionally return the value of the
     /// property at \p id at index \p index.
-    bool HasValue(const SdfAbstractDataSpecId& id, Index index,
+    bool HasValue(const SdfPath& path, Index index,
                   const UsdAbc_AlembicDataAny& value) const;
 
     /// Visit the specs.
@@ -774,14 +778,14 @@ public:
                     SdfAbstractDataSpecVisitor* visitor) const;
 
     /// List the fields.
-    TfTokenVector List(const SdfAbstractDataSpecId& id) const;
+    TfTokenVector List(const SdfPath& path) const;
 
     /// Returns the sampled times over all properties.
     const UsdAbc_TimeSamples& ListAllTimeSamples() const;
 
     /// Returns the sampled times for the property with id \p id.
     const TimeSamples& 
-    ListTimeSamplesForPath(const SdfAbstractDataSpecId& id) const;
+    ListTimeSamplesForPath(const SdfPath& path) const;
 
     /// @}
 
@@ -814,9 +818,9 @@ private:
     // Clear caches.
     void _Clear();
 
-    const Prim* _GetPrim(const SdfAbstractDataSpecId& id) const;
+    const Prim* _GetPrim(const SdfPath& path) const;
     const Property* _GetProperty(const Prim&,
-                                 const SdfAbstractDataSpecId& id) const;
+                                 const SdfPath& path) const;
     bool _HasField(const Prim* prim,
                    const TfToken& fieldName,
                    const UsdAbc_AlembicDataAny& value) const;
@@ -1149,27 +1153,20 @@ _ReaderContext::AddSampleTimes(const TimeSamples& sampleTimes)
 }
 
 bool
-_ReaderContext::HasSpec(const SdfAbstractDataSpecId& id) const
+_ReaderContext::HasSpec(const SdfPath& path) const
 {
-    if (const Prim* prim = _GetPrim(id)) {
-        if (id.IsProperty()) {
-            return _GetProperty(*prim, id);
-        }
-        else {
-            return true;
-        }
+    if (const Prim* prim = _GetPrim(path)) {
+        return path.IsAbsoluteRootOrPrimPath() || _GetProperty(*prim, path);
     }
-    else {
-        return false;
-    }
+    return false;
 }
 
 SdfSpecType
-_ReaderContext::GetSpecType(const SdfAbstractDataSpecId& id) const
+_ReaderContext::GetSpecType(const SdfPath& path) const
 {
-    if (const Prim* prim = _GetPrim(id)) {
-        if (id.IsProperty()) {
-            if (_GetProperty(*prim, id)) {
+    if (const Prim* prim = _GetPrim(path)) {
+        if (!path.IsAbsoluteRootOrPrimPath()) {
+            if (_GetProperty(*prim, path)) {
                 return SdfSpecTypeAttribute;
             }
         }
@@ -1185,15 +1182,15 @@ _ReaderContext::GetSpecType(const SdfAbstractDataSpecId& id) const
 
 bool
 _ReaderContext::HasField(
-    const SdfAbstractDataSpecId& id,
+    const SdfPath& path,
     const TfToken& fieldName,
     const UsdAbc_AlembicDataAny& value) const
 {
     TRACE_FUNCTION();
 
-    if (const Prim* prim = _GetPrim(id)) {
-        if (id.IsProperty()) {
-            if (const Property* property = _GetProperty(*prim, id)) {
+    if (const Prim* prim = _GetPrim(path)) {
+        if (!path.IsAbsoluteRootOrPrimPath()) {
+            if (const Property* property = _GetProperty(*prim, path)) {
                 return _HasField(property, fieldName, value);
             }
         }
@@ -1206,15 +1203,15 @@ _ReaderContext::HasField(
 
 bool
 _ReaderContext::HasValue(
-    const SdfAbstractDataSpecId& id,
+    const SdfPath& path,
     Index index,
     const UsdAbc_AlembicDataAny& value) const
 {
     TRACE_FUNCTION();
 
-    if (const Prim* prim = _GetPrim(id)) {
-        if (id.IsProperty()) {
-            if (const Property* property = _GetProperty(*prim, id)) {
+    if (const Prim* prim = _GetPrim(path)) {
+        if (!path.IsAbsoluteRootOrPrimPath()) {
+            if (const Property* property = _GetProperty(*prim, path)) {
                 return _HasValue(property, ISampleSelector(index), value);
             }
         }
@@ -1231,7 +1228,7 @@ _ReaderContext::VisitSpecs(
     for (const auto& v : _prims) {
         // Visit the prim.
         const SdfPath& primPath = v.first;
-        if (!visitor->VisitSpec(owner, SdfAbstractDataSpecId(&primPath))) {
+        if (!visitor->VisitSpec(owner, primPath)) {
             return;
         }
 
@@ -1240,7 +1237,7 @@ _ReaderContext::VisitSpecs(
         if (&prim != _pseudoRoot) {
             for (const auto& w : prim.propertiesCache) {
                 if (!visitor->VisitSpec(owner,
-                            SdfAbstractDataSpecId(&primPath, &w.first))) {
+                                        primPath.AppendProperty(w.first))) {
                     return;
                 }
             }
@@ -1249,15 +1246,15 @@ _ReaderContext::VisitSpecs(
 }
 
 TfTokenVector
-_ReaderContext::List(const SdfAbstractDataSpecId& id) const
+_ReaderContext::List(const SdfPath& path) const
 {
     TRACE_FUNCTION();
 
     TfTokenVector result;
 
-    if (const Prim* prim = _GetPrim(id)) {
-        if (id.IsProperty()) {
-            if (const Property* property = _GetProperty(*prim, id)) {
+    if (const Prim* prim = _GetPrim(path)) {
+        if (!path.IsAbsoluteRootOrPrimPath()) {
+            if (const Property* property = _GetProperty(*prim, path)) {
                 result.push_back(SdfFieldKeys->TypeName);
                 result.push_back(SdfFieldKeys->Custom);
                 result.push_back(SdfFieldKeys->Variability);
@@ -1318,13 +1315,13 @@ _ReaderContext::ListAllTimeSamples() const
 }
 
 const _ReaderContext::TimeSamples& 
-_ReaderContext::ListTimeSamplesForPath(const SdfAbstractDataSpecId& id) const
+_ReaderContext::ListTimeSamplesForPath(const SdfPath& path) const
 {
     TRACE_FUNCTION();
 
-    if (id.IsProperty()) {
-        if (const Prim* prim = _GetPrim(id)) {
-            if (const Property* property = _GetProperty(*prim, id)) {
+    if (path.IsPropertyPath()) {
+        if (const Prim* prim = _GetPrim(path)) {
+            if (const Property* property = _GetProperty(*prim, path)) {
                 if (property->timeSampled) {
                     return property->sampleTimes;
                 }
@@ -1369,8 +1366,16 @@ _ReaderContext::_OpenOgawa(
     std::recursive_mutex** mutex) const
 {
     *format = "Ogawa";
+    #if ALEMBIC_LIBRARY_VERSION >= 10709
+    *result = IArchive(
+                Alembic::AbcCoreOgawa::ReadArchive(
+                    _GetNumOgawaStreams(), 
+                    TfGetEnvSetting(USD_ABC_READ_ARCHIVE_USE_MMAP)),
+                filePath, ErrorHandler::kQuietNoopPolicy);
+    #else
     *result = IArchive(Alembic::AbcCoreOgawa::ReadArchive(_GetNumOgawaStreams()),
                        filePath, ErrorHandler::kQuietNoopPolicy);
+    #endif
     return *result;
 }
 
@@ -1519,19 +1524,24 @@ _ReaderContext::_Clear()
 }
 
 const _ReaderContext::Prim*
-_ReaderContext::_GetPrim(const SdfAbstractDataSpecId& id) const
+_ReaderContext::_GetPrim(const SdfPath& path) const
 {
-    _PrimMap::const_iterator i = _prims.find(id.GetPropertyOwningSpecPath());
+    _PrimMap::const_iterator i = _prims.find(path.GetAbsoluteRootOrPrimPath());
     return i == _prims.end() ? NULL : &i->second;
 }
 
 const _ReaderContext::Property*
 _ReaderContext::_GetProperty(
     const Prim& prim,
-    const SdfAbstractDataSpecId& id) const
+    const SdfPath& path) const
 {
+    // The alembic reader does not support relational attributes; only prim
+    // properties.
+    if (!path.IsPrimPropertyPath()) {
+        return nullptr;
+    }
     PropertyMap::const_iterator i =
-        prim.propertiesCache.find(id.GetPropertyName());
+        prim.propertiesCache.find(path.GetNameToken());
     return i == prim.propertiesCache.end() ? NULL : &i->second;
 }
 
@@ -1808,9 +1818,9 @@ public:
     typedef _IsValidTag IsValidTag;
     typedef _MetaDataTag MetaDataTag;
     typedef _SampleTimesTag SampleTimesTag;
-    typedef boost::function<bool (IsValidTag)> IsValid;
-    typedef boost::function<const MetaData& (MetaDataTag)> GetMetaData;
-    typedef boost::function<_AlembicTimeSamples(SampleTimesTag)> GetSampleTimes;
+    typedef std::function<bool (IsValidTag)> IsValid;
+    typedef std::function<const MetaData& (MetaDataTag)> GetMetaData;
+    typedef std::function<_AlembicTimeSamples(SampleTimesTag)> GetSampleTimes;
 
     _PrimReaderContext(_ReaderContext&,
                        const IObject& prim,
@@ -1822,19 +1832,12 @@ public:
     /// Returns the Usd path to this prim.
     const SdfPath& GetPath() const;
 
-    /// Returns \c true iff a flag is in the set.
-    bool IsFlagSet(const TfToken& flagName) const;
-
     /// Returns \p name converted to a valid Usd name not currently used
     /// by any property on this prim.
     std::string GetUsdName(const std::string& name) const;
 
     /// Returns the prim cache.
     Prim& GetPrim();
-
-    /// Returns the property cache for the property named \p name.  Returns
-    /// an empty property if the property hasn't been added yet.
-    const Property& GetProperty(const TfToken& name) const;
 
     /// Adds a property named \p name of type \p typeName with the converter
     /// \p converter.  \p converter must be a functor object that conforms
@@ -1860,10 +1863,6 @@ public:
     /// property hierarchy with \p name as the left-most component.
     void AddOutOfSchemaProperty(const std::string& name,
                                 const AlembicProperty& property);
-
-    /// Replaces the converter on the property named \p name.
-    void SetPropertyConverter(const TfToken& name,
-                              const Converter& converter);
 
     /// Set the schema.  This makes additional properties available via
     /// the \c ExtractSchema() method.
@@ -1899,10 +1898,6 @@ public:
     /// Returns the names of properties that have not been extracted yet
     /// in Alembic property order.
     std::vector<std::string> GetUnextractedNames() const;
-
-    /// Returns the names of properties that have not been extracted yet
-    /// from the schema in Alembic property order.
-    std::vector<std::string> GetUnextractedSchemaNames() const;
 
     /// Returns a _PrimReaderContext corresponding to the parent of this context.
     _PrimReaderContext GetParentContext() const;
@@ -1964,12 +1959,6 @@ _PrimReaderContext::GetPath() const
     return _path;
 }
 
-bool
-_PrimReaderContext::IsFlagSet(const TfToken& flagName) const
-{
-    return _context.IsFlagSet(flagName);
-}
-
 std::string
 _PrimReaderContext::GetUsdName(const std::string& name) const
 {
@@ -1982,28 +1971,6 @@ _PrimReaderContext::Prim&
 _PrimReaderContext::GetPrim()
 {
     return _context.AddPrim(GetPath());
-}
-
-const _PrimReaderContext::Property&
-_PrimReaderContext::GetProperty(const TfToken& name) const
-{
-    if (const _ReaderContext::Property* property =
-            _context.FindProperty(GetPath().AppendProperty(name))) {
-        return *property;
-    }
-    static _ReaderContext::Property empty;
-    return empty;
-}
-
-void
-_PrimReaderContext::SetPropertyConverter(
-    const TfToken& name,
-    const Converter& converter)
-{
-    const SdfPath path = GetPath().AppendProperty(name);
-    if (TF_VERIFY(_context.FindProperty(path))) {
-        _context.FindOrCreateProperty(path).converter = converter;
-    }
 }
 
 void
@@ -2052,12 +2019,6 @@ std::vector<std::string>
 _PrimReaderContext::GetUnextractedNames() const
 {
     return _unextracted;
-}
-
-std::vector<std::string>
-_PrimReaderContext::GetUnextractedSchemaNames() const
-{
-    return _unextractedSchema;
 }
 
 template <class T>
@@ -2388,8 +2349,9 @@ struct _CopyGeneric {
     typedef typename PropertyType::traits_type AlembicTraits;
 
     PropertyType object;
-    _CopyGeneric(const AlembicProperty& object_) :
-        object(object_.Cast<PropertyType>()) { }
+    _CopyGeneric(const AlembicProperty& object_,
+                 SchemaInterpMatching matching = kStrictMatching) :
+        object(object_.Cast<PropertyType>(matching)) { }
 
     bool operator()(_IsValidTag) const
     {
@@ -3061,20 +3023,6 @@ _ReadProperty(_PrimReaderContext* context, const char* name, TfToken propName, S
     }
 }
 
-/* Unused
-static
-void
-_ReadOtherSchema(_PrimReaderContext* context)
-{
-    // Read every unextracted property to Usd using default converters.
-    // This handles any property we don't have specific rules for.
-    for (const auto& name : context->GetUnextractedSchemaNames()) {
-        context->AddOutOfSchemaProperty(
-            context->GetUsdName(name), context->ExtractSchema(name));
-    }
-}
-*/
-
 static
 void
 _ReadOrientation(_PrimReaderContext* context)
@@ -3210,7 +3158,7 @@ _ReadPolyMesh(_PrimReaderContext* context)
         UsdGeomTokens->points,
         SdfValueTypeNames->Point3fArray,
         _CopyGeneric<IP3fArrayProperty, GfVec3f>(
-            context->ExtractSchema("P")));
+            context->ExtractSchema("P"), kNoMatching));
     context->AddProperty(
         UsdGeomTokens->velocities,
         SdfValueTypeNames->Vector3fArray,
@@ -3266,7 +3214,7 @@ _ReadSubD(_PrimReaderContext* context)
         UsdGeomTokens->points,
         SdfValueTypeNames->Point3fArray,
         _CopyGeneric<IP3fArrayProperty, GfVec3f>(
-            context->ExtractSchema("P")));
+            context->ExtractSchema("P"), kNoMatching));
     context->AddProperty(
         UsdGeomTokens->velocities,
         SdfValueTypeNames->Vector3fArray,
@@ -3419,7 +3367,7 @@ _ReadCurves(_PrimReaderContext* context)
         UsdGeomTokens->points,
         SdfValueTypeNames->Point3fArray,
         _CopyGeneric<IP3fArrayProperty, GfVec3f>(
-            context->ExtractSchema("P")));
+            context->ExtractSchema("P"), kNoMatching));
     context->AddProperty(
         UsdGeomTokens->velocities,
         SdfValueTypeNames->Vector3fArray,
@@ -3493,7 +3441,7 @@ _ReadPoints(_PrimReaderContext* context)
         UsdGeomTokens->points,
         SdfValueTypeNames->Point3fArray,
         _CopyGeneric<IP3fArrayProperty, GfVec3f>(
-            context->ExtractSchema("P")));
+            context->ExtractSchema("P"), kNoMatching));
     context->AddProperty(
         UsdGeomTokens->velocities,
         SdfValueTypeNames->Vector3fArray,
@@ -4152,51 +4100,51 @@ UsdAbc_AlembicDataReader::SetFlag(const TfToken& flagName, bool set)
 }
 
 bool
-UsdAbc_AlembicDataReader::HasSpec(const SdfAbstractDataSpecId& id) const
+UsdAbc_AlembicDataReader::HasSpec(const SdfPath& path) const
 {
-    return _impl->HasSpec(id);
+    return _impl->HasSpec(path);
 }
 
 SdfSpecType
-UsdAbc_AlembicDataReader::GetSpecType(const SdfAbstractDataSpecId& id) const
+UsdAbc_AlembicDataReader::GetSpecType(const SdfPath& path) const
 {
-    return _impl->GetSpecType(id);
+    return _impl->GetSpecType(path);
 }
 
 bool
 UsdAbc_AlembicDataReader::HasField(
-    const SdfAbstractDataSpecId& id,
+    const SdfPath& path,
     const TfToken& fieldName,
     SdfAbstractDataValue* value) const
 {
-    return _impl->HasField(id, fieldName, UsdAbc_AlembicDataAny(value));
+    return _impl->HasField(path, fieldName, UsdAbc_AlembicDataAny(value));
 }
 
 bool
 UsdAbc_AlembicDataReader::HasField(
-    const SdfAbstractDataSpecId& id,
+    const SdfPath& path,
     const TfToken& fieldName,
     VtValue* value) const
 {
-    return _impl->HasField(id, fieldName, UsdAbc_AlembicDataAny(value));
+    return _impl->HasField(path, fieldName, UsdAbc_AlembicDataAny(value));
 }
 
 bool
 UsdAbc_AlembicDataReader::HasValue(
-    const SdfAbstractDataSpecId& id,
+    const SdfPath& path,
     Index index,
     SdfAbstractDataValue* value) const
 {
-    return _impl->HasValue(id, index, UsdAbc_AlembicDataAny(value));
+    return _impl->HasValue(path, index, UsdAbc_AlembicDataAny(value));
 }
 
 bool
 UsdAbc_AlembicDataReader::HasValue(
-    const SdfAbstractDataSpecId& id,
+    const SdfPath& path,
     Index index,
     VtValue* value) const
 {
-    return _impl->HasValue(id, index, UsdAbc_AlembicDataAny(value));
+    return _impl->HasValue(path, index, UsdAbc_AlembicDataAny(value));
 }
 
 void
@@ -4208,9 +4156,9 @@ UsdAbc_AlembicDataReader::VisitSpecs(
 }
 
 TfTokenVector
-UsdAbc_AlembicDataReader::List(const SdfAbstractDataSpecId& id) const
+UsdAbc_AlembicDataReader::List(const SdfPath& path) const
 {
-    return _impl->List(id);
+    return _impl->List(path);
 }
 
 const std::set<double>&
@@ -4221,9 +4169,9 @@ UsdAbc_AlembicDataReader::ListAllTimeSamples() const
 
 const UsdAbc_AlembicDataReader::TimeSamples&
 UsdAbc_AlembicDataReader::ListTimeSamplesForPath(
-    const SdfAbstractDataSpecId& id) const
+    const SdfPath& path) const
 {
-    return _impl->ListTimeSamplesForPath(id);
+    return _impl->ListTimeSamplesForPath(path);
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

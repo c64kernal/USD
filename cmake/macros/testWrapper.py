@@ -99,7 +99,7 @@ def _resolvePath(baselineDir, fileName):
     if os.path.isdir(nonSpecific):
         baselineDir = nonSpecific
 
-    return os.path.join(baselineDir, fileName)
+    return os.path.normpath(os.path.join(baselineDir, fileName))
 
 def _stripPath(f, pathPattern):
     import re
@@ -241,11 +241,11 @@ if __name__ == '__main__':
     # Add any envvars specified with --env-var options into the environment
     env = os.environ.copy()
     for varStr in args.envVars:
-        if varStr == 'PATH':
-            sys.stderr.write("Error: use --pre-path or --post-path to edit PATH.")
-            sys.exit(1)
         try:
             k, v = varStr.split('=', 1)
+            if k == 'PATH':
+                sys.stderr.write("Error: use --pre-path or --post-path to edit PATH.")
+                sys.exit(1)
             v = v.replace('<PXR_TEST_DIR>', testDir)
             env[k] = v
         except IndexError:

@@ -251,6 +251,58 @@ public:
                 readerLock.lock();
             }
 
+            //
+            // If the staticScene attrs dictate that we should insert an empty
+            // group at this location, configure the interface to build out the
+            // current prim as if it were its own child and return before
+            // executing any registered ops.
+            //
+            // Note, the inserted group will have the same name as the current
+            // prim.
+            //
+            // Note, we assume that the staticScene contents are aware of the
+            // inserted group, i.e. that the current contents apply to the empty
+            // group and there is a child entry for the current prim.
+            //
+
+            FnKat::GroupAttribute staticScene =
+                    interface.getOpArg("staticScene");
+            if (FnKat::IntAttribute(staticScene.getChildByName(
+                    "a.insertEmptyGroup")).getValue(0, false) == 1)
+            {
+                // Execute any ops contained within the staticScene args
+                _ExecStaticSceneOps(interface, staticScene);
+
+                const std::string primName = prim.GetName();
+
+                // Same caveat as the one mentioned in BuildIntermediate...
+                //
+                // XXX In order for the prim's material hierarchy to get built
+                // out correctly via the PxrUsdInCore_LooksGroupOp, we'll need
+                // to override the original 'rootLocation' and 'isolatePath'
+                // UsdIn args.
+                //
+                ArgsBuilder ab;
+                ab.update(usdInArgs);
+                ab.rootLocation =
+                        interface.getOutputLocationPath() + "/" + primName;
+                ab.isolatePath = prim.GetPath().GetString();
+
+                interface.createChild(
+                        primName,
+                        "",
+                        FnKat::GroupBuilder()
+                            .update(opArgs)
+                            .set("staticScene", staticScene.getChildByName(
+                                "c." + primName))
+                            .build(),
+                        FnKat::GeolibCookInterface::ResetRootFalse,
+                        new PxrUsdKatanaUsdInPrivateData(prim, ab.build(),
+                                privateData),
+                        PxrUsdKatanaUsdInPrivateData::Delete);
+                return;
+            }
+
             // When in "as sources and instances" mode, scan for instances
             // and masters at each location that contains a payload.
             if (prim.HasAuthoredPayloads() &&
@@ -402,34 +454,9 @@ public:
             // Execute any ops contained within the staticScene args.
             //
 
-            FnKat::GroupAttribute opGroups = opArgs.getChildByName("staticScene.x");
-            if (opGroups.isValid())
-            {
-                for (int childindex = 0; childindex < opGroups.getNumberOfChildren();
-                        ++childindex)
-                {
-                    FnKat::GroupAttribute entry =
-                            opGroups.getChildByIndex(childindex);
-
-                    if (!entry.isValid())
-                    {
-                        continue;
-                    }
-
-                    FnKat::StringAttribute subOpType =
-                            entry.getChildByName("opType");
-
-                    FnKat::GroupAttribute subOpArgs =
-                            entry.getChildByName("opArgs");
-
-                    if (!subOpType.isValid() || !subOpArgs.isValid())
-                    {
-                        continue;
-                    }
-
-                    interface.execOp(subOpType.getValue("", false), subOpArgs);
-                }
-            }
+            // Re-get the latest staticScene in case anything changed
+            staticScene = interface.getOpArg("staticScene");
+            _ExecStaticSceneOps(interface, staticScene);
 
         }   // if (prim.GetPath() != SdfPath::AbsoluteRootPath())
         
@@ -494,14 +521,24 @@ public:
                 {
                     interface.setAttr(
                             "type", FnKat::StringAttribute("instance"));
+
+                    // If we are a nested instance, the UsdInArgs' root location
+                    // will be different from the "original" root location
+                    // specified on the PxrUsdIn node, since the
+                    // BuildIntermediate op reinvokes pxrUsdIn with modified
+                    // UsdInArgs when building out masters.
+                    // We can get at the original root location by querying the
+                    // raw op args rather than the UsdInArgs.
+                    std::string rootLocationPath = FnAttribute::StringAttribute(
+                        opArgs.getChildByName("location")).getValue(
+                            interface.getRootLocationPath(), false);
                     interface.setAttr("geometry.instanceSource",
                             FnAttribute::StringAttribute(
-                                usdInArgs->GetRootLocationPath() + 
-                                masterParentPath +
+                                rootLocationPath + masterParentPath +
                                 "/Masters/" + masterPath));
-                    
-                    // XXX, ConstraintGroups are still made for models 
-                    //      that became instances. Need to suppress creation 
+
+                    // XXX, ConstraintGroups are still made for models
+                    //      that became instances. Need to suppress creation
                     //      of that stuff
                     interface.deleteChildren();
                     skipAllChildren = true;
@@ -888,6 +925,20 @@ public:
             }
         }
         
+        FnKat::StringAttribute materialBindingPurposesAttr = 
+                opArgs.getChildByName("materialBindingPurposes");
+        if (materialBindingPurposesAttr.getNumberOfValues())
+        {
+            auto sample = materialBindingPurposesAttr.getNearestSample(0.0f);
+
+            for (const auto & v : sample)
+            {
+                ab.materialBindingPurposes.emplace_back(v);
+            }
+        }
+
+
+
         // always include userProperties if not explicitly included.
         if (ab.extraAttributesOrNamespaces.find("userProperties")
                 == ab.extraAttributesOrNamespaces.end())
@@ -958,6 +1009,41 @@ private:
         }
 
         return boundsAttr;
+    }
+
+    static void
+    _ExecStaticSceneOps(
+            FnKat::GeolibCookInterface& interface,
+            FnKat::GroupAttribute& staticScene)
+    {
+        FnKat::GroupAttribute opsGroup = staticScene.getChildByName("x");
+        if (opsGroup.isValid())
+        {
+            for (int childindex = 0; childindex < opsGroup.getNumberOfChildren();
+                    ++childindex)
+            {
+                FnKat::GroupAttribute entry =
+                        opsGroup.getChildByIndex(childindex);
+
+                if (!entry.isValid())
+                {
+                    continue;
+                }
+
+                FnKat::StringAttribute subOpType =
+                        entry.getChildByName("opType");
+
+                FnKat::GroupAttribute subOpArgs =
+                        entry.getChildByName("opArgs");
+
+                if (!subOpType.isValid() || !subOpArgs.isValid())
+                {
+                    continue;
+                }
+
+                interface.execOp(subOpType.getValue("", false), subOpArgs);
+            }
+        }
     }
 
     static bool _hasSiteKinds;
@@ -1206,7 +1292,7 @@ public:
             for (size_t i = 0; i < usdPrimPathValues.size(); ++i)
             {
                 std::string primPath(usdPrimPathValues[i]);
-                if (usdPrimPathValues.empty())
+                if (!SdfPath::IsValidPathString(primPath))
                 {
                     continue;
                 }

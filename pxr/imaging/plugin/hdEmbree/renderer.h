@@ -21,8 +21,8 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#ifndef HDEMBREE_RENDERER_H
-#define HDEMBREE_RENDERER_H
+#ifndef PXR_IMAGING_PLUGIN_HD_EMBREE_RENDERER_H
+#define PXR_IMAGING_PLUGIN_HD_EMBREE_RENDERER_H
 
 #include "pxr/pxr.h"
 
@@ -36,6 +36,7 @@
 #include <embree2/rtcore_ray.h>
 
 #include <random>
+#include <atomic>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -110,6 +111,9 @@ public:
     /// Mark the aov buffers as unconverged.
     void MarkAovBuffersUnconverged();
 
+    /// Get the number of samples completed so far.
+    int GetCompletedSamples() const;
+
 private:
     // Validate the internal consistency of aov bindings provided to
     // SetAovBindings. If the aov bindings are invalid, this will issue
@@ -142,7 +146,7 @@ private:
                           std::default_random_engine &random,
                           GfVec4f const& clearColor);
     // Compute the depth at the given ray hit.
-    bool _ComputeDepth(RTCRay const& rayHit, float *depth, bool ndc);
+    bool _ComputeDepth(RTCRay const& rayHit, float *depth, bool clip);
     // Compute the given ID at the given ray hit.
     bool _ComputeId(RTCRay const& rayHit, TfToken const& idType, int32_t *id);
     // Compute the normal at the given ray hit.
@@ -194,8 +198,11 @@ private:
     int _ambientOcclusionSamples;
     // Should we enable scene colors?
     bool _enableSceneColors;
+
+    // How many samples have been completed.
+    std::atomic<int> _completedSamples;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // HDEMBREE_RENDERER_H
+#endif // PXR_IMAGING_PLUGIN_HD_EMBREE_RENDERER_H

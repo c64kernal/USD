@@ -24,8 +24,8 @@
 #include "pxr/imaging/glf/glew.h"
 
 #include "pxr/imaging/hd/renderPassState.h"
-#include "pxr/imaging/hdEmbree/renderDelegate.h"
-#include "pxr/imaging/hdEmbree/renderPass.h"
+#include "pxr/imaging/plugin/hdEmbree/renderDelegate.h"
+#include "pxr/imaging/plugin/hdEmbree/renderPass.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -193,15 +193,17 @@ HdEmbreeRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPassState,
         // has a sample (as determined by depth buffer convergence).
         if (_depthBuffer.IsConverged()) {
             _colorBuffer.Resolve();
-            uint8_t *cdata = _colorBuffer.Map();
+            uint8_t *cdata = reinterpret_cast<uint8_t*>(_colorBuffer.Map());
             if (cdata) {
-                _compositor.UpdateColor(_width, _height, cdata);
+                _compositor.SetTexture(TfToken("color"), _width, _height,
+                                       _colorBuffer.GetFormat(), cdata);
                 _colorBuffer.Unmap();
             }
             _depthBuffer.Resolve();
-            uint8_t *ddata = _depthBuffer.Map();
+            uint8_t *ddata = reinterpret_cast<uint8_t*>(_depthBuffer.Map());
             if (ddata) {
-                _compositor.UpdateDepth(_width, _height, ddata);
+                _compositor.SetTexture(TfToken("depth"), _width, _height,
+                                       HdFormatFloat32, ddata);
                 _depthBuffer.Unmap();
             }
         }
@@ -212,6 +214,7 @@ HdEmbreeRenderPass::_Execute(HdRenderPassStateSharedPtr const& renderPassState,
         glGetBooleanv(GL_BLEND, &restoreblendEnabled);
         glDisable(GL_BLEND);
 
+        _compositor.SetProgramToCompositor(/* depthAware = */true);
         _compositor.Draw();
 
         if (restoreblendEnabled) {

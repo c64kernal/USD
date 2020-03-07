@@ -22,11 +22,12 @@
 // language governing permissions and limitations under the Apache License.
 //
 #include "pxr/pxr.h"
-#include "pxr/usd/usdMtlx/fileFormat.h"
-#include "pxr/usd/usdMtlx/reader.h"
+#include "pxr/usd/plugin/usdMtlx/fileFormat.h"
+#include "pxr/usd/plugin/usdMtlx/reader.h"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usd/usdaFileFormat.h"
 #include "pxr/base/tf/pathUtils.h"
+#include "pxr/base/trace/trace.h"
 
 #include <MaterialXCore/Document.h>
 #include <MaterialXFormat/XmlIo.h>
@@ -173,13 +174,6 @@ UsdMtlxFileFormat::WriteToStream(
 {
     return SdfFileFormat::FindById(UsdUsdaFileFormatTokens->Id)->
         WriteToStream(spec, out, indent);
-}
-
-bool 
-UsdMtlxFileFormat::_IsStreamingLayer(
-    const SdfLayer& layer) const
-{
-    return false;
 }
 
 PXR_NAMESPACE_CLOSE_SCOPE

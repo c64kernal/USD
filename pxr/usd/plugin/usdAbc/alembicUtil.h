@@ -21,13 +21,13 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#ifndef USDABC_ALEMBICUTIL_H
-#define USDABC_ALEMBICUTIL_H
+#ifndef PXR_USD_PLUGIN_USD_ABC_ALEMBIC_UTIL_H
+#define PXR_USD_PLUGIN_USD_ABC_ALEMBIC_UTIL_H
 
 /// \file usdAbc/alembicUtil.h
 
 #include "pxr/pxr.h"
-#include "pxr/usd/usdAbc/alembicReader.h"
+#include "pxr/usd/plugin/usdAbc/alembicReader.h"
 #include "pxr/usd/sdf/abstractData.h"
 #include "pxr/usd/sdf/schema.h"
 #include "pxr/usd/sdf/types.h"
@@ -38,7 +38,6 @@
 #include <Alembic/Abc/ICompoundProperty.h>
 #include <Alembic/Abc/ISampleSelector.h>
 #include <boost/call_traits.hpp>
-#include <boost/function.hpp>
 #include <boost/operators.hpp>
 #include <boost/optional.hpp>
 #include <boost/shared_array.hpp>
@@ -47,6 +46,8 @@
 #include <boost/type_traits/remove_const.hpp>
 #include <boost/type_traits/remove_reference.hpp>
 #include <boost/variant.hpp>
+
+#include <functional>
 #include <algorithm>
 #include <iosfwd>
 #include <map>
@@ -894,15 +895,15 @@ public:
     /// value from the named property in the compound property at the given
     /// sample selector to the \c UsdAbc_AlembicDataAny value.  The converter
     /// can assume the property has the type that the converter was keyed by.
-    typedef boost::function<bool (const ICompoundProperty&,
-                                  const std::string&,
-                                  const ISampleSelector&,
-                                  const UsdAbc_AlembicDataAny&)> ToUsdConverter;
+    typedef std::function<bool (const ICompoundProperty&,
+                                const std::string&,
+                                const ISampleSelector&,
+                                const UsdAbc_AlembicDataAny&)> ToUsdConverter;
 
     /// A reverse conversion function (Usd -> Alembic).  Returns the value
     /// as a \c _SampleForAlembic.  The converter can assume the VtValue
     /// is holding the expected type.
-    typedef boost::function<_SampleForAlembic(const VtValue&)> FromUsdConverter;
+    typedef std::function<_SampleForAlembic(const VtValue&)> FromUsdConverter;
 
     UsdAbc_AlembicDataConversion();
 
@@ -1042,4 +1043,4 @@ UsdAbc_ReverseOrderImpl(
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // USDABC_ALEMBICUTIL_H
+#endif // PXR_USD_PLUGIN_USD_ABC_ALEMBIC_UTIL_H

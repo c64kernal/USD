@@ -96,10 +96,9 @@ endif()
 # ----------------------------------------------
 
 if (PXR_BUILD_IMAGING)
-    # --OpenEXR
-    find_package(OpenEXR REQUIRED)
     # --OpenImageIO
     if (PXR_BUILD_OPENIMAGEIO_PLUGIN)
+        find_package(OpenEXR REQUIRED)
         find_package(OpenImageIO REQUIRED)
         add_definitions(-DPXR_OIIO_PLUGIN_ENABLED)
     endif()
@@ -120,6 +119,12 @@ if (PXR_BUILD_IMAGING)
     if (PXR_ENABLE_PTEX_SUPPORT)
         find_package(PTex REQUIRED)
         add_definitions(-DPXR_PTEX_SUPPORT_ENABLED)
+    endif()
+    # --OpenVDB
+    if (PXR_ENABLE_OPENVDB_SUPPORT)
+        find_package(OpenEXR REQUIRED)
+        find_package(OpenVDB REQUIRED)
+        add_definitions(-DPXR_OPENVDB_SUPPORT_ENABLED)
     endif()
     # --X11
     if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -149,12 +154,8 @@ if (PXR_BUILD_KATANA_PLUGIN)
         )
 endif()
 
-if (PXR_BUILD_MAYA_PLUGIN)
-    find_package(Maya REQUIRED)
-endif()
-
-if (PXR_BUILD_HOUDINI_PLUGIN)
-    find_package(Houdini REQUIRED)
+if (PXR_BUILD_PRMAN_PLUGIN)
+    find_package(Renderman REQUIRED)
 endif()
 
 if (PXR_BUILD_ALEMBIC_PLUGIN)
@@ -169,12 +170,17 @@ if (PXR_BUILD_ALEMBIC_PLUGIN)
     endif()
 endif()
 
+if (PXR_BUILD_DRACO_PLUGIN)
+    find_package(Draco REQUIRED)
+endif()
+
 if (PXR_BUILD_MATERIALX_PLUGIN)
     find_package(MaterialX REQUIRED)
 endif()
 
 if(PXR_ENABLE_OSL_SUPPORT)
     find_package(OSL REQUIRED)
+    find_package(OpenEXR REQUIRED)
 endif()
 
 # ----------------------------------------------

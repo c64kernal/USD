@@ -21,18 +21,21 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#include "pxr/imaging/hdEmbree/renderer.h"
+#include "pxr/imaging/plugin/hdEmbree/renderer.h"
 
-#include "pxr/imaging/hdEmbree/renderBuffer.h"
-#include "pxr/imaging/hdEmbree/config.h"
-#include "pxr/imaging/hdEmbree/context.h"
-#include "pxr/imaging/hdEmbree/mesh.h"
+#include "pxr/imaging/plugin/hdEmbree/renderBuffer.h"
+#include "pxr/imaging/plugin/hdEmbree/config.h"
+#include "pxr/imaging/plugin/hdEmbree/context.h"
+#include "pxr/imaging/plugin/hdEmbree/mesh.h"
 
 #include "pxr/imaging/hd/perfLog.h"
 
 #include "pxr/base/gf/matrix3f.h"
 #include "pxr/base/gf/vec2f.h"
 #include "pxr/base/work/loops.h"
+
+#include <chrono>
+#include <thread>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -51,6 +54,7 @@ HdEmbreeRenderer::HdEmbreeRenderer()
     , _samplesToConvergence(0)
     , _ambientOcclusionSamples(0)
     , _enableSceneColors(false)
+    , _completedSamples(0)
 {
 }
 
@@ -139,7 +143,7 @@ HdEmbreeRenderer::_ValidateAovBindings()
         }
 
         if (_aovNames[i].name != HdAovTokens->color &&
-            _aovNames[i].name != HdAovTokens->linearDepth &&
+            _aovNames[i].name != HdAovTokens->cameraDepth &&
             _aovNames[i].name != HdAovTokens->depth &&
             _aovNames[i].name != HdAovTokens->primId &&
             _aovNames[i].name != HdAovTokens->instanceId &&
@@ -154,7 +158,7 @@ HdEmbreeRenderer::_ValidateAovBindings()
         HdFormat format = _aovBindings[i].renderBuffer->GetFormat();
 
         // depth is only supported for float32 attachments
-        if ((_aovNames[i].name == HdAovTokens->linearDepth ||
+        if ((_aovNames[i].name == HdAovTokens->cameraDepth ||
              _aovNames[i].name == HdAovTokens->depth) &&
             format != HdFormatFloat32) {
             TF_WARN("Aov '%s' has unsupported format '%s'",
@@ -357,13 +361,30 @@ HdEmbreeRenderer::MarkAovBuffersUnconverged()
     }
 }
 
+int
+HdEmbreeRenderer::GetCompletedSamples() const
+{
+    return _completedSamples.load();
+}
+
 void
 HdEmbreeRenderer::Render(HdRenderThread *renderThread)
 {
+    _completedSamples.store(0);
+
     // Commit any pending changes to the scene.
     rtcCommit(_scene);
 
     if (!_ValidateAovBindings()) {
+        // We aren't going to render anything. Just mark all AOVs as converged
+        // so that we will stop rendering.
+        for (size_t i = 0; i < _aovBindings.size(); ++i) {
+            HdEmbreeRenderBuffer *rb = static_cast<HdEmbreeRenderBuffer*>(
+                _aovBindings[i].renderBuffer);
+            rb->SetConverged(true);
+        }
+        // XXX:validation
+        TF_WARN("Could not validate Aovs. Render will not complete");
         return;
     }
 
@@ -380,6 +401,18 @@ HdEmbreeRenderer::Render(HdRenderThread *renderThread)
     // We consider the image converged after N samples, which is a convenient
     // and simple heuristic.
     for (int i = 0; i < _samplesToConvergence; ++i) {
+        // Pause point.
+        while (renderThread->IsPauseRequested()) {
+            if (renderThread->IsStopRequested()) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        // Cancellation point.
+        if (renderThread->IsStopRequested()) {
+            break;
+        }
+
         unsigned int tileSize = HdEmbreeConfig::GetInstance().tileSize;
         const unsigned int numTilesX = (_width + tileSize-1) / tileSize;
         const unsigned int numTilesY = (_height + tileSize-1) / tileSize;
@@ -399,17 +432,18 @@ HdEmbreeRenderer::Render(HdRenderThread *renderThread)
             for (size_t i = 0; i < _aovBindings.size(); ++i) {
                 HdEmbreeRenderBuffer *rb = static_cast<HdEmbreeRenderBuffer*>(
                     _aovBindings[i].renderBuffer);
-                if (!rb->IsMultiSampled()) {
-                    rb->Unmap();
-                    rb->SetConverged(true);
-                } else {
+                if (rb->IsMultiSampled()) {
                     moreWork = true;
                 }
             }
             if (!moreWork) {
+                _completedSamples.store(i+1);
                 break;
             }
         }
+
+        // Track the number of completed samples for external consumption.
+        _completedSamples.store(i+1);
 
         // Cancellation point.
         if (renderThread->IsStopRequested()) {
@@ -417,14 +451,12 @@ HdEmbreeRenderer::Render(HdRenderThread *renderThread)
         }
     }
 
-    // Mark the multisampled attachments as converged and unmap them.
+    // Mark the multisampled attachments as converged and unmap all buffers.
     for (size_t i = 0; i < _aovBindings.size(); ++i) {
         HdEmbreeRenderBuffer *rb = static_cast<HdEmbreeRenderBuffer*>(
             _aovBindings[i].renderBuffer);
-        if (rb->IsMultiSampled()) {
-            rb->Unmap();
-            rb->SetConverged(true);
-        }
+        rb->Unmap();
+        rb->SetConverged(true);
     }
 }
 
@@ -571,12 +603,12 @@ HdEmbreeRenderer::_TraceRay(unsigned int x, unsigned int y,
             GfVec4f clearColor = _GetClearColor(_aovBindings[i].clearValue);
             GfVec4f sample = _ComputeColor(ray, random, clearColor);
             renderBuffer->Write(GfVec3i(x,y,1), 4, sample.data());
-        } else if ((_aovNames[i].name == HdAovTokens->linearDepth ||
+        } else if ((_aovNames[i].name == HdAovTokens->cameraDepth ||
                     _aovNames[i].name == HdAovTokens->depth) &&
                    renderBuffer->GetFormat() == HdFormatFloat32) {
             float depth;
-            bool ndc = (_aovNames[i].name == HdAovTokens->depth);
-            if(_ComputeDepth(ray, &depth, ndc)) {
+            bool clip = (_aovNames[i].name == HdAovTokens->depth);
+            if(_ComputeDepth(ray, &depth, clip)) {
                 renderBuffer->Write(GfVec3i(x,y,1), 1, &depth);
             }
         } else if ((_aovNames[i].name == HdAovTokens->primId ||
@@ -643,13 +675,13 @@ HdEmbreeRenderer::_ComputeId(RTCRay const& rayHit, TfToken const& idType,
 bool
 HdEmbreeRenderer::_ComputeDepth(RTCRay const& rayHit,
                                 float *depth,
-                                bool ndc)
+                                bool clip)
 {
     if (rayHit.geomID == RTC_INVALID_GEOMETRY_ID) {
         return false;
     }
 
-    if (ndc) {
+    if (clip) {
         GfVec3f hitPos = GfVec3f(rayHit.org[0] + rayHit.tfar * rayHit.dir[0],
             rayHit.org[1] + rayHit.tfar * rayHit.dir[1],
             rayHit.org[2] + rayHit.tfar * rayHit.dir[2]);
@@ -657,7 +689,8 @@ HdEmbreeRenderer::_ComputeDepth(RTCRay const& rayHit,
         hitPos = _viewMatrix.Transform(hitPos);
         hitPos = _projMatrix.Transform(hitPos);
 
-        *depth = hitPos[2];
+        // For the depth range transform, we assume [0,1].
+        *depth = (hitPos[2] + 1.0f) / 2.0f;
     } else {
         *depth = rayHit.tfar;
     }

@@ -22,17 +22,17 @@
 // language governing permissions and limitations under the Apache License.
 //
 
-#ifndef SDR_OSLPARSERPLUGIN_H
-#define SDR_OSLPARSERPLUGIN_H
+#ifndef PXR_USD_PLUGIN_SDR_OSL_OSL_PARSER_H
+#define PXR_USD_PLUGIN_SDR_OSL_OSL_PARSER_H
 
 /// \file sdrOsl/oslParser.h
 
 #include "pxr/pxr.h"
-#include "pxr/usd/sdrOsl/api.h"
+#include "pxr/usd/plugin/sdrOsl/api.h"
 #include "pxr/base/vt/value.h"
 #include "pxr/usd/ndr/parserPlugin.h"
 #include "pxr/usd/sdr/declare.h"
-#include "OSL/oslquery.h"
+#include <OSL/oslquery.h>
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -152,16 +152,19 @@ private:
     std::string _getParamAsString(const OslParameter& param) const;
 
     // Gets a common type + array size (if array) from the OSL parameter
-    std::tuple<TfToken, size_t> _getTypeName(const OslParameter* param) const;
+    std::tuple<TfToken, size_t> _getTypeName(
+        const OslParameter* param,
+        const NdrTokenMap& metadata) const;
 
     // Gets the default value of the specified param.
     VtValue _getDefaultValue(
         const SdrOslParserPlugin::OslParameter& param,
         const std::string& oslType,
-        bool isArray
+        size_t arraySize,
+        const NdrTokenMap& metadata
     ) const;
 };
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // SDR_OSLPARSERPLUGIN_H
+#endif // PXR_USD_PLUGIN_SDR_OSL_OSL_PARSER_H

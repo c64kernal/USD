@@ -21,8 +21,8 @@
 // KIND, either express or implied. See the Apache License for the specific
 // language governing permissions and limitations under the Apache License.
 //
-#ifndef HDEMBREE_RENDERBUFFER_H
-#define HDEMBREE_RENDERBUFFER_H
+#ifndef PXR_IMAGING_PLUGIN_HD_EMBREE_RENDER_BUFFER_H
+#define PXR_IMAGING_PLUGIN_HD_EMBREE_RENDER_BUFFER_H
 
 #include "pxr/pxr.h"
 #include "pxr/imaging/hd/renderBuffer.h"
@@ -37,6 +37,22 @@ class HdEmbreeRenderBuffer : public HdRenderBuffer
 public:
     HdEmbreeRenderBuffer(SdfPath const& id);
     ~HdEmbreeRenderBuffer();
+
+    /// Get allocation information from the scene delegate.
+    /// Note: Embree overrides this only to stop the render thread before
+    /// potential re-allocation.
+    ///   \param sceneDelegate The scene delegate backing this render buffer.
+    ///   \param renderParam   The renderer-global render param.
+    ///   \param dirtyBits     The invalidation state for this render buffer.
+    virtual void Sync(HdSceneDelegate *sceneDelegate,
+                      HdRenderParam *renderParam,
+                      HdDirtyBits *dirtyBits) override;
+
+    /// Deallocate before deletion.
+    ///   \param renderParam   The renderer-global render param.
+    /// Note: Embree overrides this only to stop the render thread before
+    /// potential deallocation.
+    virtual void Finalize(HdRenderParam *renderParam) override;
 
     /// Allocate a new buffer with the given dimensions and format.
     ///   \param dimensions   Width, height, and depth of the desired buffer.
@@ -74,7 +90,7 @@ public:
     /// before any I/O, followed by memory access, followed by Unmap() when
     /// done.
     ///   \return The address of the buffer.
-    virtual uint8_t* Map() override {
+    virtual void* Map() override {
         _mappers++;
         return _buffer.data();
     }
@@ -117,7 +133,7 @@ public:
     ///   \param pixel         What index to write
     ///   \param numComponents The arity of the value to write.
     ///   \param value         A float-valued vector to write. 
-    void Write(GfVec3i const& pixel, int numComponents, float const* value);
+    void Write(GfVec3i const& pixel, size_t numComponents, float const* value);
 
     /// Write an int, vec2i, vec3i, or vec4i to the renderbuffer.
     /// This should only be called on a mapped buffer. Extra components will
@@ -126,7 +142,7 @@ public:
     ///   \param pixel         What index to write
     ///   \param numComponents The arity of the value to write.
     ///   \param value         An int-valued vector to write. 
-    void Write(GfVec3i const& pixel, int numComponents, int const* value);
+    void Write(GfVec3i const& pixel, size_t numComponents, int const* value);
 
     /// Clear the renderbuffer with a float, vec2f, vec3f, or vec4f.
     /// This should only be called on a mapped buffer. Extra components will
@@ -134,7 +150,7 @@ public:
     /// remainder will be taken as 0.
     ///   \param numComponents The arity of the value to write.
     ///   \param value         A float-valued vector to write. 
-    void Clear(int numComponents, float const* value);
+    void Clear(size_t numComponents, float const* value);
 
     /// Clear the renderbuffer with an int, vec2i, vec3i, or vec4i.
     /// This should only be called on a mapped buffer. Extra components will
@@ -142,7 +158,7 @@ public:
     /// remainder will be taken as 0.
     ///   \param numComponents The arity of the value to write.
     ///   \param value         An int-valued vector to write. 
-    void Clear(int numComponents, int const* value);
+    void Clear(size_t numComponents, int const* value);
 
 private:
     // Calculate the needed buffer size, given the allocation parameters.
@@ -180,4 +196,4 @@ private:
 
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // HDEMBREE_RENDERBUFFER_H
+#endif // PXR_IMAGING_PLUGIN_HD_EMBREE_RENDER_BUFFER_H
