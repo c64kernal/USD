@@ -38,7 +38,7 @@ jobs:
   - task: PublishPipelineArtifact@0
     inputs:
       artifactName: 'usd-macOS'
-      targetPath: "/Users/vsts/USDinst"
+      targetPath: "/Users/runner/USDinst"
 
 - job: Windows
   timeoutInMinutes: 90
@@ -50,7 +50,7 @@ jobs:
       call set PATH=C:/Python27amd64;C:/Python27amd64/Scripts;%PATH%
       call python --version
       call python -m pip install --upgrade pip
-      call python -m pip install PySide2
+      call python -m pip install PySide
       call python -m pip install PyOpenGL
       call python build_scripts/build_usd.py --build-args USD,"-DPYTHON_EXECUTABLE:FILEPATH=C:/Python27amd64/python.exe" --build %HOME%/USDgen/build --src %HOME%/USDgen/src %HOME%/USDinst
     displayName: 'Building USD'
