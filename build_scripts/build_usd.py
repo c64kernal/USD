@@ -296,6 +296,15 @@ def RunCMake(context, force, extraArgs = None):
         else:
             generator = "Visual Studio 14 2015 Win64"
 
+    multiproc = "-j{procs}"
+    if Windows():
+        multiproc = "/M:{procs}"
+    
+    if generator == "Xcode":
+        multiproc = "-jobs {procs} -parallelizeTargets"
+        
+    multiproc = multiproc.format(procs=context.numJobs)
+            
     if generator is not None:
         generator = '-G "{gen}"'.format(gen=generator)
 
@@ -329,6 +338,7 @@ def RunCMake(context, force, extraArgs = None):
                     osx_rpath=(osx_rpath or ""),
                     generator=(generator or ""),
                     extraArgs=(" ".join(extraArgs) if extraArgs else "")))
+
         Run("cmake --build . --config {config} --target install -- {multiproc}"
             .format(config=config,
                     multiproc=FormatMultiProcs(context.numJobs, generator)))
