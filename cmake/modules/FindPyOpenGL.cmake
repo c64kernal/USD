@@ -26,6 +26,8 @@ if (NOT PYTHON_EXECUTABLE)
     return()
 endif()
 
+message(STATUS ${PYTHON_EXECUTABLE})
+
 execute_process(
     COMMAND 
         "${PYTHON_EXECUTABLE}" "-c" "from OpenGL import *"
@@ -36,6 +38,8 @@ execute_process(
 if (pyopenglImportResult EQUAL 0)
     message(STATUS "Found PyOpenGL")
     set(PYOPENGL_AVAILABLE True)
+else()
+    message(STATUS "Did NOT find PyOpenGL")
 endif()
 
 include(FindPackageHandleStandardArgs)
